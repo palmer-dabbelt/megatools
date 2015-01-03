@@ -15,6 +15,7 @@ jsfiles = \
 	js/session.js \
 	js/api.js \
 	js/tools/info.js \
+	js/tools/register.js \
 	js/tools/df.js
 
 BUILT_SOURCES = src/resources.c src/resources.xml
