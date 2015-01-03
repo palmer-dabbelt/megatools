@@ -350,12 +350,35 @@ static int js_buftojsonstring(duk_context *ctx)
 	return 1;
 }
 
+static int js_date(duk_context *ctx)
+{
+	const guchar* fmt = duk_require_string(ctx, 0);
+	unsigned int ts = duk_get_uint(ctx, 1);
+
+	gc_date_time_unref GDateTime* dt = ts ? g_date_time_new_from_unix_local(ts) : g_date_time_new_now_local();
+	gc_free gchar* tmp = g_date_time_format(dt, fmt);
+
+	duk_push_string(ctx, tmp);
+	return 1;
+}
+
+static int js_shell_quote(duk_context *ctx)
+{
+	const guchar* str = duk_require_string(ctx, 0);
+
+	gc_free gchar* tmp = g_shell_quote(str);
+
+	duk_push_string(ctx, tmp);
+	return 1;
+}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "timeout", js_timeout, 2 },
 	{ "joinbuf", js_joinbuf, DUK_VARARGS },
 	{ "slicebuf", js_slicebuf, 3 },
 	{ "prompt", js_prompt, 3 },
+	{ "date", js_date, 2 },
 	{ "file_read", js_file_read, 1 },
 	{ "file_write", js_file_write, 2 },
 	{ "file_exists", js_file_exists, 1 },
@@ -366,6 +389,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "get_config_dir", js_get_config_dir, 0 },
 	{ "file_node_key_unpack", js_file_node_key_unpack, 1 },
 	{ "buftojsonstring", js_buftojsonstring, 1 },
+	{ "shell_quote", js_shell_quote, 1 },
 	{ NULL, NULL, 0 }
 };
 

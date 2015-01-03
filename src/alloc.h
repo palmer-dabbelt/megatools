@@ -78,6 +78,9 @@ DEFINE_CLEANUP_FUNCTION_NULL(GOptionContext*, g_option_context_free)
 DEFINE_CLEANUP_FUNCTION_FULL(GString*, g_string_free, FALSE, TRUE)
 #define gc_string_free CLEANUP(g_string_free)
 
+DEFINE_CLEANUP_FUNCTION_NULL(GDateTime*, g_date_time_unref)
+#define gc_date_time_unref CLEANUP(g_date_time_unref)
+
 G_END_DECLS
 
 #endif
