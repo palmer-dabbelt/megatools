@@ -26,8 +26,11 @@ GW.define('Application', 'object', {
 		}).map(function(cls) {
 			return {
 				cls: cls,
-				name: cls.prototype.name
+				name: cls.prototype.name,
+				order: cls.prototype.order || 10000
 			};
+		}).sortBy(function(tool) {
+			return tool.order;
 		}).value();
 	},
 

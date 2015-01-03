@@ -1,4 +1,5 @@
 GW.define('Tool.INFO', 'tool', {
+	order: 200,
 	name: 'info',
 	description: 'Shows user account information.',
 	usages: [

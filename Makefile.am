@@ -13,8 +13,8 @@ jsfiles = \
 	js/tests/http.js \
 	js/tests/timer.js \
 	js/tool.js \
-	js/tools/info.js \
 	js/tools/register.js \
+	js/tools/info.js \
 	js/tools/df.js \
 	js/main.js
 

@@ -1,4 +1,5 @@
 GW.define('Tool.REGISTER', 'tool', {
+	order: 100,
 	name: 'register',
 	description: 'Registers new Mega.co.nz account.',
 	usages: [
