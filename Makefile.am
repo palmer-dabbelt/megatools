@@ -18,6 +18,7 @@ jsfiles = \
 	js/tools/reset.js \
 	js/tools/info.js \
 	js/tools/df.js \
+	js/tools/ls.js \
 	js/main.js
 
 BUILT_SOURCES = src/resources.c src/resources.xml
