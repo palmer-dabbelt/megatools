@@ -144,6 +144,7 @@ static gchar* prompt(const gchar* message, gboolean no_echo)
 #else
 		tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 #endif
+		g_print("\n");
 	}
 
 	return input;
