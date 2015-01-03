@@ -148,7 +148,7 @@ Defer.chain = function(runners) {
 					runNext.apply(null, arguments);
 				}, defer.reject);
 			} else {
-				defer.resolve();
+				defer.resolve.apply(null, arguments);
 			}
 		}
 
