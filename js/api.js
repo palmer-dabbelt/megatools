@@ -77,6 +77,7 @@
  *   login(email, password)                 done({user, uh, sid, pk, password, mk, email})
  *   updateUser(user)                       done({uh})
  *   getUser()                              done({user})
+ *   changePassword(mk, pk, email, newPassword) done({uh})
  *
  * Methods you'll probably never need:
  *
