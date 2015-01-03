@@ -104,6 +104,12 @@ GW.define('Session', 'object', {
 		return C.file_write(path, data);
 	},
 
+	removeSessionFile: function(name) {
+		var path = this.getSessionFilePath(name);
+
+		C.file_remove(path);
+	},
+
 	// load session from disk
 	load: function() {
 		var plain_payload = this.loadSessionFile();
@@ -188,6 +194,11 @@ GW.define('Session', 'object', {
 				loginAndGetUser();
 			}
 		});
+	},
+
+	close: function() {
+		this.removeSessionFile();
+		this.removeSessionFile('fs');
 	},
 
 	// needs optimized C written code for fs cache/path mapping
