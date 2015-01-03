@@ -88,7 +88,7 @@ GW.define('TestSuite.API', 'TestSuite', {
 			Defer.chain([
 
 				function() {
-					return api.registerUser('Bob', 'mt4@megous.com', 'qwe').done(function(res) {
+					return api.registerUser('Bob', 'mt5@megous.com', 'qwe').done(function(res) {
 						Log.debug('registerUser.done:', res);
 					});
 				},
@@ -110,7 +110,7 @@ GW.define('TestSuite.API', 'TestSuite', {
 					return Defer.defer(function(defer) {
 						promptCode(function(code) {
 							if (code) {
-								api.verifyUser(res.uh, res.password, code).then(defer.resolve, defer.reject);
+								api.confirmUserFast(code, res.mk, res.pk, res.email).then(defer.resolve, defer.reject);
 							} else {
 								defer.reject('no_code', 'Missing verification code');
 							}
@@ -139,7 +139,7 @@ GW.define('TestSuite.API', 'TestSuite', {
 			Defer.chain([
 
 				function() {
-					return api.login('mt4@megous.com', 'qwe').done(function(res) {
+					return api.login('mt5@megous.com', 'qwe').done(function(res) {
 						Log.debug('login.done:', res);
 					});
 				},

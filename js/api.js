@@ -36,6 +36,7 @@
  *   rsa          - rsa key pair {privk, pubk}
  *   privk        - rsa encrypted private key
  *   pubk         - rsa public key
+ *   code         - signup code from the signup email
  *
  * API call methods may receive multiple parameters and always return
  * one object with properties named as show above.
@@ -70,16 +71,17 @@
  *
  *   registerEphemeral(password)            done({uh, password, ts, mk, pk}) 
  *   loginEphemeral(uh, password)           done({user, uh, sid, pk, password, mk})
- *   registerUser()                         done({})
- *   verifyUser()                           done({})
+ *   registerUser(name, email, password)    done({uh, password, ts, mk, pk, sid, user, c_data, name, email})
+ *   confirmUser(code, password)            done({uh, email, name, pk, mk, password, challenge, rsa})
+ *   confirmUserFast(code, mk, pk, email)   done({rsa, mk, pk, email, uh})
  *   login(email, password)                 done({user, uh, sid, pk, password, mk, email})
- *   updateUser(user)                       done({user})
+ *   updateUser(user)                       done({uh})
  *   getUser()                              done({user})
  *
  * Methods you'll probably never need:
  *
- *   requestConfirmation()                  done({})
- *   sendConfirmation()                     done({})
+ *   requestConfirmation(password, mk, name, email)     done({data, password, mk, name, email, c_data})
+ *   getConfirmationData(code, password)                done({uh, email, name, pk, mk, password, challenge})
  */
 GW.define('MegaAPI', 'object', {
 
@@ -258,26 +260,23 @@ GW.define('MegaAPI', 'object', {
 		var pk = C.aes_key_from_password(password);
 		var mk = C.aes_key_random();
 		var emk = C.aes_enc(pk, mk);
-
 		var ts1 = C.random(16);
 		var ts2 = C.aes_enc(mk, ts1);
 		var ts = C.joinbuf(ts1, ts2);
 
-		return Defer.defer(function(defer) {
-			this.callSingle({
-				a: 'up',
-				k: C.ub64enc(emk),
-				ts: C.ub64enc(ts)
-			}).then(function(uh) {
-				defer.resolve({
-					uh: uh,
-					password: password,
-					ts: ts,
-					mk: mk,
-					pk: pk
-				});
-			}, defer.reject);
-		}, this);
+		return this.callSingle({
+			a: 'up',
+			k: C.ub64enc(emk),
+			ts: C.ub64enc(ts)
+		}).done(function(uh) {
+			this.setArgs({
+				uh: uh,
+				password: password,
+				ts: ts,
+				mk: mk,
+				pk: pk
+			});
+		});
 	},
 
 	// }}}
@@ -399,20 +398,12 @@ GW.define('MegaAPI', 'object', {
 
 	// }}}
 
-	zeroBuf: function(len) {
-		var buf = Duktape.Buffer(len);
-		for (var i = 0; i < len; i++) {
-			buf[i] = 0;
-		}
-		return buf;
-	},
-
 	/**
 	 * Request confirmation email to be sent by the server to specified email address.
 	 */
 	requestConfirmation: function(password, mk, name, email) {
 		var pk = C.aes_key_from_password(password);
-		var c_data = C.aes_enc(pk, C.joinbuf(mk, C.random(4), this.zeroBuf(8), C.random(4)));
+		var c_data = C.aes_enc(pk, C.joinbuf(mk, C.random(4), Utils.zeroBuf(8), C.random(4)));
 
 		return this.callSingle({
 			a: 'uc',
@@ -432,99 +423,123 @@ GW.define('MegaAPI', 'object', {
 	},
 
 	/**
-	 * Send confirmation code from the confirmation email to the server.
-	 *
-	 * Confirmation link: https://mega.co.nz/#confirmZOB7VJrNXFvCzyZBIcdWhr5l4dJatrWpEjEpAmH17ieRRWFjWAUAtSqaVQ_TQKltZWdvdXNAZW1haWwuY3oJQm9iIEJyb3duMhVh8n67rBg
-	 *
-	 * Code: ZOB7VJrNXFvCzyZBIcdWhr5l4dJatrWpEjEpAmH17ieRRWFjWAUAtSqaVQ_TQKltZWdvdXNAZW1haWwuY3oJQm9iIEJyb3duMhVh8n67rBg
-	 */
-	sendConfirmation: function(code) {
-		return this.callSingle({
-			a: 'ud',
-			c: code
-		}).done(function(res) {
-			this.setArgs({
-				email: C.ub64dec(res[0]).toString(),
-				name: C.ub64dec(res[1]).toString(),
-				uh: res[2],
-				emk: C.ub64dec(res[3]),
-				challenge: C.ub64dec(res[4]) // enc(challenge, pk)
-			});
-		});
-	},
-
-	/**
 	 * Register user (full registration)
 	 */
 	registerUser: function(name, email, password) {
 		var me = this;
 		var data = {};
 
-		return Defer.defer(function(defer) {
-			Defer.chain([
-				function() {
-					return me.registerEphemeral(password);
-				}, 
+		data.email = email;
+		data.name = name;
 
-				function(res) {
-					_.extend(data, res);
+		return Defer.chain([
+			function() {
+				return me.registerEphemeral(password);
+			}, 
 
-					return me.loginEphemeral(data.uh, password);
-				}, 
-
-				function(res) {
-					_.extend(data, res);
-
-					return me.updateUser({name: name});
-				}, 
-
-				function(res) {
-                                        _.extend(data, res);
-
-					return me.requestConfirmation(password, data.mk, name, email);
-				}
-			]).then(function(res) {
+			function(res) {
 				_.extend(data, res);
 
-				defer.resolve(data);
-			}, defer.reject);
+				return me.loginEphemeral(data.uh, password);
+			}, 
+
+			function(res) {
+				_.extend(data, res);
+
+				return me.updateUser({name: name});
+			}, 
+
+			function(res) {
+				_.extend(data, res);
+
+				return me.requestConfirmation(password, data.mk, name, email);
+			}
+		]).done(function(res) {
+			_.extend(data, res);
+
+			this.setArgs(data);
 		});
 	},
 
-	verifyUser: function(uh, password, verificationCode) {
+	confirmUserFast: function(code, mk, pk, email) {
+		var data = {};
+
+		data.rsa = C.rsa_generate(mk);
+		data.mk = mk;
+		data.pk = pk;
+		data.email = email;
+		data.code = code;
+
+		return this.updateUser({
+			c: code,
+			uh: C.make_username_hash(pk, email),
+			pubk: data.rsa.pubk,
+			privk: data.rsa.privk
+		}).done(function(res) {
+			_.extend(data, res);
+
+			this.setArgs(data);
+		});
+	},
+
+	/**
+	 * Get data that were stored to the server for later retrival during account confirmation.
+	 *
+	 * Confirmation link: https://mega.co.nz/#confirmZOB7VJrNXFvCzyZBIcdWhr5l4dJatrWpEjEpAmH17ieRRWFjWAUAtSqaVQ_TQKltZWdvdXNAZW1haWwuY3oJQm9iIEJyb3duMhVh8n67rBg
+	 * Code: ZOB7VJrNXFvCzyZBIcdWhr5l4dJatrWpEjEpAmH17ieRRWFjWAUAtSqaVQ_TQKltZWdvdXNAZW1haWwuY3oJQm9iIEJyb3duMhVh8n67rBg
+	 */
+	getConfirmationData: function(code, password) {
 		var me = this;
 		var data = {};
 
 		return Defer.defer(function(defer) {
-			Defer.chain([
-				function() {
-					return me.loginEphemeral(uh, password);
-				}, 
+			return me.callSingle({
+				a: 'ud',
+				c: code
+			}).then(function(res) {
+				data.email = C.ub64dec(res[0]).toString();
+				data.name = C.ub64dec(res[1]).toString();
+				data.uh = res[2];
+				data.pk = C.aes_key_from_password(password);
+				data.emk = C.ub64dec(res[3]);
+				data.challenge = C.aes_dec(data.pk, C.ub64dec(res[4]));
+				data.mk = C.aes_dec(data.pk, data.emk);
+				data.password = password;
 
-				function(res) {
-					_.extend(data, res);
-
-					return me.sendConfirmation(verificationCode);
-				}, 
-
-				function(res) {
-					_.extend(data, res);
-
-					data.rsa = C.rsa_generate(data.mk);
-					return me.updateUser({
-						c: verificationCode,
-						uh: C.make_username_hash(data.pk, res.email),
-						pubk: data.rsa.pubk,
-						privk: data.rsa.privk
-					});
+				// check challenge
+				if (C.slicebuf(data.challenge, 4, 8) == Utils.zeroBuf(8)) {
+					defer.resolve(data);
+				} else {
+					defer.reject('bad_password', 'Invalid password');
 				}
-			]).then(function() {
-				defer.resolve({
-					mk: data.mk,
-					uh: data.uh,
-					password: password
-				});
 			}, defer.reject);
+		});
+	},
+
+	confirmUser: function(code, password) {
+		var me = this;
+		var data = {};
+
+		return Defer.chain([
+			function() {
+				return me.getConfirmationData(code, password);
+			}, 
+
+			function(res) {
+				_.extend(data, res);
+
+				return me.loginEphemeral(data.uh, password);
+			}, 
+
+			function(res) {
+				_.extend(data, res);
+
+				return me.confirmUserFast(code, data.mk, data.pk, data.email);
+			}
+		]).done(function(res) {
+			_.extend(data, res);
+
+			this.setArgs(data);
 		});
 	}
 });
