@@ -1,22 +1,22 @@
 jsfiles = \
+	js/libs/underscore-min.js \
+	js/libs/gw.js \
+	js/utils.js \
+	js/defer.js \
+	js/log.js \
+	js/api.js \
+	js/session.js \
 	js/test.js \
-	js/tool.js \
-	js/debug.js \
 	js/tests/crypto.js \
 	js/tests/api.js \
 	js/tests/session.js \
 	js/tests/http.js \
 	js/tests/timer.js \
-	js/libs/underscore-min.js \
-	js/libs/gw.js \
-	js/main.js \
-	js/defer.js \
-	js/utils.js \
-	js/session.js \
-	js/api.js \
+	js/tool.js \
 	js/tools/info.js \
 	js/tools/register.js \
-	js/tools/df.js
+	js/tools/df.js \
+	js/main.js
 
 BUILT_SOURCES = src/resources.c src/resources.xml
 DISTCLEANFILES = $(BUILT_SOURCES)

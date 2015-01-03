@@ -145,15 +145,15 @@ static gboolean run(gpointer data)
 {
 	EVAL("/js/libs/underscore-min.js");
 	EVAL("/js/libs/gw.js");
-	EVAL("/js/debug.js");
-	EVAL("/js/defer.js");
 	EVAL("/js/utils.js");
+	EVAL("/js/defer.js");
+	EVAL("/js/log.js");
 	EVAL("/js/api.js");
 	EVAL("/js/session.js");
-	EVAL("/js/tool.js");
 	EVAL("/js/test.js");
-	EVAL_DIR("/js/tools");
 	EVAL_DIR("/js/tests");
+	EVAL("/js/tool.js");
+	EVAL_DIR("/js/tools");
 	EVAL("/js/main.js");
 
 	return FALSE;
