@@ -1,151 +1,82 @@
-# {{{ global flags
+jsfiles = \
+	js/test.js \
+	js/tool.js \
+	js/debug.js \
+	js/tests/crypto.js \
+	js/tests/api.js \
+	js/tests/session.js \
+	js/tests/http.js \
+	js/tests/timer.js \
+	js/libs/underscore-min.js \
+	js/libs/gw.js \
+	js/main.js \
+	js/defer.js \
+	js/utils.js \
+	js/session.js \
+	js/api.js
 
-BUILT_SOURCES =
+BUILT_SOURCES = src/resources.c src/resources.xml
+DISTCLEANFILES = $(BUILT_SOURCES)
 CLEANFILES =
-EXTRA_DIST =
-DISTCLEANFILES =
+EXTRA_DIST = \
+	resources.sh \
+	$(jsfiles)
 
 AM_CFLAGS = \
+	-DG_LOG_DOMAIN=\"Megatools\" \
 	$(GLIB_CFLAGS) \
-	$(OPENSSL_CFLAGS) \
-	$(LIBCURL_CFLAGS) \
-	-I$(srcdir)/libtools \
-	-I$(srcdir)/mega \
+	$(NETTLE_CFLAGS) \
+	-I$(srcdir)/src \
+	-I$(srcdir)/duktape \
+	-I$(srcdir)/sjson \
 	-I$(srcdir)
 
-# }}}
-# {{{ libmega
-
-lib_LTLIBRARIES = \
-	libmega.la
-
-libmega_la_CFLAGS = \
-	$(AM_CFLAGS) \
-	-DG_LOG_DOMAIN=\"Mega\"
-
-libmega_la_LIBADD = \
+LIBS = -lm -lgmp \
 	$(GLIB_LIBS) \
-	$(OPENSSL_LIBS) \
-	$(LIBCURL_LIBS)
+	$(NETTLE_LIBS)
 
-libmega_la_LDFLAGS = -version-info $(LIB_MEGA_VERSION) -no-undefined
+bin_PROGRAMS = megatools
 
-libmega_la_SOURCES = \
-	mega/mega-aes-key.c \
-	mega/mega-aes-key.h \
-	mega/mega-rsa-key.c \
-	mega/mega-rsa-key.h \
-	mega/mega-chunked-cbc-mac.c \
-	mega/mega-chunked-cbc-mac.h \
-	mega/mega-http-client.c \
-	mega/mega-http-client.h \
-	mega/mega-http-io-stream.c \
-	mega/mega-http-io-stream.h \
-	mega/mega-http-input-stream.c \
-	mega/mega-http-input-stream.h \
-	mega/mega-http-output-stream.c \
-	mega/mega-http-output-stream.h \
-	mega/mega-aes-ctr-encryptor.c \
-	mega/mega-aes-ctr-encryptor.h \
-	mega/utils.c \
-	mega/utils.h \
-	mega/megatypes.h \
-	mega/mega.h \
-	$(GLIB_GENERATED)
-
-include $(GLIB_MAKEFILE)
-
-GLIB_GENERATED = \
-	mega/mega-marshal.c \
-	mega/mega-marshal.h \
-	mega/mega-enum-types.c \
-	mega/mega-enum-types.h
-
-mega_marshal_sources = $(libmega_la_SOURCES)
-mega_enum_types_sources = $(libmega_la_SOURCES)
-
-BUILT_SOURCES += $(GLIB_GENERATED)
-
-pkginclude_HEADERS = $(filter-out mega/mega-marshal.h mega/private-utils.h,$(filter %.h,$(libmega_la_SOURCES)))
-pkgincludedir = $(includedir)/mega
-
-include $(INTROSPECTION_MAKEFILE)
-INTROSPECTION_GIRS = Mega-1.0.gir
-INTROSPECTION_SCANNER_ARGS = --add-include-path=.
-INTROSPECTION_COMPILER_ARGS = --includedir=.
-
-if HAVE_INTROSPECTION
-
-gi_libmega_files = $(filter-out mega/mega-enum-types.% mega/mega-marshal.%,$(libmega_la_SOURCES))
-gi_built_libmega_files = mega/mega-enum-types.h
-
-Mega-1.0.gir: libmega.la
-Mega_1_0_gir_INCLUDES = Gio-2.0
-Mega_1_0_gir_CFLAGS = $(AM_CFLAGS)
-Mega_1_0_gir_LIBS = libmega.la
-Mega_1_0_gir_EXPORT_PACKAGES = libmega
-Mega_1_0_gir_SCANNERFLAGS = --c-include "mega/mega.h" --warn-all
-Mega_1_0_gir_FILES = \
-  $(addprefix $(srcdir)/, $(gi_libmega_files)) \
-  $(foreach f,$(gi_built_libmega_files), \
-     $(if $(shell test -f $(addprefix $(srcdir)/,$(f)) && echo yes), \
-	$(addprefix $(srcdir)/,$(f)), \
-	$(f)))
-
-girdir = $(datadir)/gir-1.0
-gir_DATA = $(INTROSPECTION_GIRS)
-
-typelibdir = $(libdir)/girepository-1.0
-typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
-
-CLEANFILES += $(gir_DATA) $(typelib_DATA)
-
-endif
-
-# }}}
-# {{{ tools
-
-TOOLS_SOURCES = \
-	libtools/sjson.gen.c \
-	libtools/sjson.h \
-	libtools/http.c \
-	libtools/http.h \
-	libtools/oldmega.c \
-	libtools/oldmega.h \
-	libtools/tools.c \
-	libtools/tools.h \
-	libtools/alloc.h
-
-LDADD = \
-	libmega.la
-
-megafs_LDADD = \
-	$(LDADD) \
-	$(FUSE_LIBS)
-
-megafs_CFLAGS = \
-	$(AM_CFLAGS) \
-	$(FUSE_CFLAGS)
-
-bin_PROGRAMS = megadf megadl megaget megals megamkdir megaput megareg megarm megamv megasync
-
-megadf_SOURCES     = tools/df.c $(TOOLS_SOURCES)
-megadl_SOURCES     = tools/dl.c $(TOOLS_SOURCES)
-megaget_SOURCES    = tools/get.c $(TOOLS_SOURCES)
-megals_SOURCES     = tools/ls.c $(TOOLS_SOURCES)
-megamkdir_SOURCES  = tools/mkdir.c $(TOOLS_SOURCES)
-megaput_SOURCES    = tools/put.c $(TOOLS_SOURCES)
-megareg_SOURCES    = tools/reg.c $(TOOLS_SOURCES)
-megarm_SOURCES     = tools/rm.c $(TOOLS_SOURCES)
-megamv_SOURCES     = tools/mv.c $(TOOLS_SOURCES)
-megasync_SOURCES   = tools/sync.c $(TOOLS_SOURCES)
+megatools_SOURCES = \
+	src/alloc.h \
+	src/js.c \
+	src/js.h \
+	src/js-http.c \
+	src/js-http.h \
+	src/js-misc.c \
+	src/js-misc.h \
+	src/js-crypto.c \
+	src/js-crypto.h \
+	src/crypto.c \
+	src/crypto.h \
+	src/http.c \
+	src/http.h \
+	src/resources.c \
+	duktape/duktape.c \
+	duktape/duktape.h \
+	sjson/sjson.h \
+	sjson/sjson.gen.c \
+	src/main.h \
+	src/main.c
 
 if ENABLE_FUSE
-bin_PROGRAMS += megafs
-megafs_SOURCES     = tools/fs.c $(TOOLS_SOURCES)
+LIBS += $(FUSE_LIBS)
+AM_CFLAGS += $(FUSE_CFLAGS)
+megatools_SOURCES += \
+	src/js-fuse.c \
+	src/js-fuse.h
+else
+megatools_SOURCES += \
+	src/js-fuse-nop.c \
+	src/js-fuse.h
 endif
 
-# }}}
+src/resources.c: src/resources.xml
+	glib-compile-resources --target=$@ --sourcedir $(top_srcdir) --generate-source $<
+
+src/resources.xml: $(jsfiles)
+	$(srcdir)/resources.sh $(top_srcdir) > $@
+
 # {{{ docs
 
 MAN1 = megadf megadl megaget megals megamkdir megaput megareg megarm megamv megasync megafs
@@ -187,38 +118,11 @@ else
 
 endif
 
-# }}}
-# {{{ tests
-
-if ENABLE_TESTS
-noinst_PROGRAMS = tests/test-aes tests/test-rsa
-endif
-
-tests_test_aes_SOURCES = tests/test-aes.c
-tests_test_rsa_SOURCES = tests/test-rsa.c
-
-EXTRA_DIST += \
-	tests/config.js \
-	tests/test-bindings.js \
-	tests/test-bindings.py \
-	tests/test-bindings.lua \
-	tests/test-bindings.rb \
-	tests/test-bindings.sh \
-	tests/test-http.sh \
-	tests/test-http.js \
-	tests/test-server.sh \
-	tests/test-server.js \
-	tests/test-api.sh \
-	tests/test-api.js
-
-EXTRA_DIST += LICENSE Makefile.glib HACKING
+EXTRA_DIST += LICENSE HACKING
 
 doc_DATA = LICENSE NEWS TODO README INSTALL HACKING
 
 # }}}
-
-pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = libmega.pc
 
 export MAKEFLAGS += --no-print-directory -s
 ACLOCAL_AMFLAGS = -I m4
