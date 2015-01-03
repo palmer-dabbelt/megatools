@@ -220,7 +220,6 @@ GW.define('Tool.REGISTER', 'tool', {
 
 				if (!C.file_write(path, Duktape.Buffer(Duktape.enc('jx', {username: opts.email || handle, password: password}, null, '  ')))) {
 					Log.warning('Failed to save config file at ' + path);
-					defer.resolve();
 				}
 			}
 		}
