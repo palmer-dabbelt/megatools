@@ -18,42 +18,50 @@ GW.define('Tool', 'object', {
 	args: null,
 	opts: null,
 
-	basicOpts: [{ 
+	basicOpts: [{
+		longName: "batch",
+		shortName: 'b',
+		help: "Disable interactive input and output information in a format suitable for batch processing/scripting."
+	}, {
+		longName: "verbose",
+		shortName: 'v',
+		help: "Make output more verbose. Be aware that this option may output your secret keys to the terminal."
+	}, { 
 		longName: "debug",
-		help: "Enable debugging output"
+		help: "Enable debugging output."
 	}, {
 		longName: "version",
-		help: "Show version information and exit"
+		help: "Show version information and exit."
 	}, { 
 		longName: "help",
-		help: "Display help message and exit"
-	}],
-
-	configOpts: [{
-		longName: "config",
-		arg: 'filename',
-		help: "Load configuration from a file",
-		argHelp: "PATH"     
-	}, {
-		longName: "ignore-config-file",
-		help: "Disable loading " + MEGA_RC_FILENAME
+		help: "Display help message and exit."
 	}],
 
 	loginOpts: [{
 		longName: "username",
 		shortName:  'u',
 		arg: 'string',
-		help: "Account username (email)",
+		help: "Either e-mail address if logging in to a full user account or user handle of an ephemeral account.",
 		argHelp: "USERNAME" 
 	}, {
 		longName: "password",
 		shortName:  'p',
 		arg: 'string',
-		help: "Account password",
+		help: "Password for login. This option is less secure than the --password-file option.",
 		argHelp: "PASSWORD" 
 	}, {
-		longName: "no-ask-password",
-		help: "Never ask interactively for a password"
+		longName: "password-file",
+		arg: 'string',
+		help: "Path to a file containing the password for login. All characters including leading and trailing spaces up to the first new line are used.",
+		argHelp: "PATH"
+	}, {
+		longName: "config",
+		arg: 'filename',
+		help: "Load credentials from a specified file.",
+		argHelp: "PATH"     
+	}, {
+		longName: "ignore-config",
+		help: "Disable loading credentials from " + MEGA_RC_FILENAME + " file from the current working or user's home directories."
 	}],
 
 	fsOpts: [{
@@ -197,6 +205,121 @@ GW.define('Tool', 'object', {
 		app.helpFooter();
 	},
 
+	loadConfig: function() {
+		var sep = C.os == 'windows' ? '\\' : '/';
+		var tryPaths = [C.get_current_dir() + sep + MEGA_RC_FILENAME, C.get_home_dir() + sep + MEGA_RC_FILENAME, C.get_config_dir() + sep + MEGA_RC_FILENAME];
+		var i, path;
+
+		if (this.opts.config) {
+			tryPaths = [this.opts.config];
+		} else if (this.opts['ignore-config']) {
+			tryPaths = [];
+		}
+
+		if (tryPaths.length > 0) {
+			Log.debug('Trying config files', tryPaths);
+		}
+
+		for (i = 0; i < tryPaths.length; i++) {
+			path = tryPaths[i];
+
+			if (C.file_exists(path)) {
+				Log.debug('Found config file', path);
+
+				var data = C.file_read(path);
+				if (data) {
+					Log.debug('Loaded config:\n' + data.toString());
+					try {
+						return Duktape.dec('jx', data.toString());
+					} catch (ex) {
+						throw new Error('Can\'t parse config file at ' + path);
+					}
+				}
+			}
+		}
+	},
+
+	getCredentials: function() {
+		return Defer.defer(function(defer) {
+			var creds = {};
+
+			if (this.opts.password && this.opts['password-file']) {
+				defer.reject('bad_opts', 'Conflicting options --password and --password-file');
+				return;
+			}
+
+			if (this.opts.password) {
+				creds.password = this.opts.password;
+			}
+
+			if (this.opts['password-file']) {
+				var data = C.file_read(this.opts['password-file']);
+				if (data) {
+					creds.password = data.toString().split(/\r?\n/)[0];
+				} else {
+					defer.reject('no_password', 'Can\'t read password file at ' + this.opts['password-file']);
+					return;
+				}
+			}
+
+			if (this.opts.username) {
+				creds.username = this.opts.username;
+			}
+
+			if (!creds.username) {
+				var config;
+				try {
+					config = this.loadConfig();
+				} catch (ex) {
+					defer.reject('bad_config', ex.message);
+					return;
+				}
+
+				if (config && config.username && config.password) {
+					creds.username = config.username;
+					creds.password = config.password;
+				} else {
+					defer.reject('no_username', 'Please specify --username or configure it in the ' + MEGA_RC_FILENAME);
+					return;
+				}
+			}
+
+			if (_.isUndefined(creds.password)) {
+				if (this.opts.batch) {
+					defer.reject('no_password', 'Please specify --password or --password-file or configure it in the ' + MEGA_RC_FILENAME);
+				} else {
+					C.prompt('Enter password: ', function(password) {
+						creds.password = password;
+
+						defer.resolve(creds);
+					}, true);
+				}
+			} else {
+				defer.resolve(creds);
+			}
+		}, this).done(function(creds) {
+			Log.debug('Using credentials', creds);
+		});
+	},
+
+	getSession: function(noOpen) {
+		return Defer.defer(function(defer) {
+			var session = new Session();
+
+			this.getCredentials().then(function(creds) {
+				session.setCredentials(creds.username, creds.password);
+
+				if (!noOpen) {
+					session.open(true).then(function() {
+						defer.resolve(session);
+					}, defer.reject);
+				} else {
+					defer.resolve(session);
+				}
+			}, defer.reject);
+		}, this);
+	},
+
 	run: function(defer) {
 		Log.error('Tool ' + this.name + ' is not implemented, yet!');
 
@@ -206,6 +329,14 @@ GW.define('Tool', 'object', {
 	_run: function(args) {
 		if (!this.parseCommandLine(args)) {
 			return Defer.rejected(10);
+		}
+
+		if (this.opts.debug) {
+			Log.setLevel(Log.DEBUG);
+		}
+
+		if (this.opts.verbose) {
+			Log.setVerbose(true);
 		}
 
 		if (this.opts.help) {

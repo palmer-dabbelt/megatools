@@ -13,7 +13,8 @@ jsfiles = \
 	js/defer.js \
 	js/utils.js \
 	js/session.js \
-	js/api.js
+	js/api.js \
+	js/tools/df.js
 
 BUILT_SOURCES = src/resources.c src/resources.xml
 DISTCLEANFILES = $(BUILT_SOURCES)

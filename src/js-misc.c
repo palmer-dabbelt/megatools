@@ -242,6 +242,15 @@ static int js_file_write(duk_context *ctx)
 	return 1;
 }
 
+static int js_file_exists(duk_context *ctx)
+{
+	const gchar* path = duk_require_string(ctx, 0);
+
+	gboolean exists = g_file_test(path, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK);
+	duk_push_boolean(ctx, exists);
+	return 1;
+}
+
 static int js_sha256_digest(duk_context *ctx)
 {
 	duk_size_t len;
@@ -258,6 +267,24 @@ static int js_sha256_digest(duk_context *ctx)
 static int js_get_tmp_dir(duk_context *ctx)
 {
 	duk_push_string(ctx, g_get_tmp_dir());
+	return 1;
+}
+
+static int js_get_current_dir(duk_context *ctx)
+{
+	duk_push_string(ctx, g_get_current_dir());
+	return 1;
+}
+
+static int js_get_home_dir(duk_context *ctx)
+{
+	duk_push_string(ctx, g_get_home_dir());
+	return 1;
+}
+
+static int js_get_config_dir(duk_context *ctx)
+{
+	duk_push_string(ctx, g_get_user_config_dir());
 	return 1;
 }
 
@@ -331,8 +358,12 @@ static const duk_function_list_entry module_funcs[] =
 	{ "prompt", js_prompt, 3 },
 	{ "file_read", js_file_read, 1 },
 	{ "file_write", js_file_write, 2 },
+	{ "file_exists", js_file_exists, 1 },
 	{ "sha256_digest", js_sha256_digest, 1 },
 	{ "get_tmp_dir", js_get_tmp_dir, 0 },
+	{ "get_current_dir", js_get_current_dir, 0 },
+	{ "get_home_dir", js_get_home_dir, 0 },
+	{ "get_config_dir", js_get_config_dir, 0 },
 	{ "file_node_key_unpack", js_file_node_key_unpack, 1 },
 	{ "buftojsonstring", js_buftojsonstring, 1 },
 	{ NULL, NULL, 0 }
