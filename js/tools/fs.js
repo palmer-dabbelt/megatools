@@ -1,0 +1,159 @@
+GW.define('Tool.FS', 'tool', {
+	order: 2000,
+	name: 'fs',
+	description: 'Mount mega.co.nz filesystem using FUSE',
+	usages: [
+               '<mountpoint>'
+	],
+
+	allowArgs: true,
+	getOptsSpecCustom: function() {
+		return [].concat(this.loginOpts);
+	},
+
+	examples: [{
+		title: 'Mount filesystem',
+		commands: [
+			'$ mkdir mount_dir',
+			'$ megatools fs --username your@email.com --password "Your Password" mount_dir'
+		]
+	}],
+
+	mount: function(fs, mountpoint) {
+		return Defer.defer(function(defer) {
+			function stat(node) {
+				return {
+					name: node.name,
+					type: isdir(node) ? 'dir' : 'file',
+					size: node.size,
+					mtime: node.mtime,
+					ino: node.handle == '*TOP*' ? 1 : C.handle_to_inode(node.handle)
+				};
+			}
+
+			function lookup(ino) {
+				var handle = ino == 1 ? '*TOP*' : C.inode_to_handle(ino);
+				var node = fs.getNodeByHandle(handle);
+				if (node) {
+					return node;
+				}
+			}
+
+			function readdir(node) {
+				var children = fs.getChildren(node);
+
+				return _.map(children || [], stat);
+			}
+
+			function isdir(node) {
+				return node.type != NodeType.FILE;
+			}
+
+			function findChildByName(node, name) {
+				var children = fs.getChildren(node), i, l;
+
+				for (i = 0, l = children.length; i < l; i++) {
+					if (children[i].name == name) {
+						return children[i];
+					}
+				}
+			}
+
+			C.fuse({
+				getattr: function(req, ino) {
+					var node = lookup(ino);
+					if (node) {
+						this.reply_attr(req, stat(node));
+					} else {
+						this.reply_err(req, this.ENOENT);
+					}
+				},
+
+				lookup: function(req, parent, name) {
+					var node = lookup(parent);
+					if (!node) {
+						this.reply_err(req, this.ENOENT);
+					} else if (isdir(node)) {
+						var child = findChildByName(node, name);
+						if (child) {
+							this.reply_entry(req, stat(child));
+						} else {
+							this.reply_err(req, this.ENOENT);
+						}
+					} else {
+						this.reply_err(req, this.ENOTDIR);
+					}
+				},
+
+				readdir: function(req, ino) {
+					var node = lookup(ino);
+					if (!node) {
+						this.reply_err(req, this.ENOENT);
+					} else if (isdir(node)) {
+						this.reply_dir(req, readdir(node));
+					} else {
+						this.reply_err(req, this.ENOTDIR);
+					}
+				},
+
+				open: function(req, ino, flags) {
+					var node = lookup(ino);
+					if (!node) {
+						this.reply_err(req, this.ENOENT);
+					} else if (isdir(node)) {
+						this.reply_err(req, this.EISDIR);
+					} else if (flags == 'r') {
+						this.reply_open(req);
+					} else {
+						this.reply_err(req, this.EACCES);
+					}
+				},
+
+				read: function(req, ino, size, off) {
+					var node = lookup(ino);
+					if (!node) {
+						this.reply_err(req, this.ENOENT);
+					} else if (isdir(node)) {
+						this.reply_err(req, this.EISDIR);
+					} else {
+						var buf = Duktape.Buffer('');
+						C.slicebuf(buf, off, size);
+						this.reply_buf(req, buf);
+					}
+				}
+			}, [mountpoint]);
+		}, this);
+	},
+
+	run: function(defer) {
+		var data = {};
+		if (this.args.length != 1) {
+			Log.error('You must provide exactly one argument - a mount point for the filesystem.');
+			defer.reject(10);
+			return;
+		}
+
+		Defer.chain([
+			function() {
+				return this.getSession();
+			},
+
+			function(session) {
+				data.session = session;
+
+				return session.getFilesystem().load();
+			},
+
+			function() {
+				var fs = data.session.getFilesystem();
+
+				return this.mount(fs, this.args[0]);
+			}
+		], this).then(function() {
+			defer.resolve();
+		}, function(code, msg) {
+			Log.error(msg);
+			defer.reject(1);
+		}, this);
+	}
+});
