@@ -255,12 +255,15 @@ GW.define('Filesystem', 'object', {
 		n.type = data.t;
 		n.handle = data.h;
 		n.parent_handle = data.p || '*TOP*';
+		n.su_handle = data.su;
 		n.user = data.u;
 		n.size = data.s;
 		n.mtime = data.ts;
 
 		// laod key
 		if (data.k) {
+			//XXX: 46+ longer keys are RSA keys, handle them
+
 			var matches = data.k.match(/[0-9a-z_-]{8,11}:[0-9a-z_-]{22,45}/ig);
 			for (var key in matches) {
 				var keyHandle = matches[key].split(':')[0];
@@ -281,6 +284,7 @@ GW.define('Filesystem', 'object', {
 						n.key = C.aes_dec(decKey, keyData);
 					}
 				} else {
+					Log.warning('No key found for node', data);
 					return null;
 				}
 			}
@@ -296,7 +300,21 @@ GW.define('Filesystem', 'object', {
 				n.attrs = JSON.parse(C.buftojsonstring(attrs));
 				n.name = n.attrs.n;
 			} else {
+				Log.warning('Attribute decryption failed', data);
 				return null;
+			}
+
+
+			if (C.os == 'windows') {
+				if (n.name == '.' || n.name == '..' || n.name.match(/\/\\<>:"\|\?\*/)) {
+					Log.warning('Node has invalid name', n.name, data);
+					return null;
+				}
+			} else {
+				if (n.name == '.' || n.name == '..' || n.name.match(/\//)) {
+					Log.warning('Node has invalid name', n.name, data);
+					return null;
+				}
 			}
 		}
 
@@ -306,6 +324,21 @@ GW.define('Filesystem', 'object', {
 			n.name = "Inbox";
 		} else if (n.type == NodeType.ROOT) {
 			n.name = "Root";
+		}
+
+		if (data.sk) {
+			var esk = C.ub64dec(data.sk), sk;
+			if (sk.length > 16) {
+				sk = C.rsa_decrypt(this.session.data.privk, this.session.data.mk, sk);
+			} else if (sk.length == 16) {
+				sk = C.aes_dec(this.session.data.mk, sk);
+			} else {
+				Log.warning('Can\'t decrypt share key for', data);
+			}
+
+			if (sk) {
+				this.setShareKey(n.handle, C.slicebuf(sk, 0, 16));
+			}
 		}
 
 		return n;
@@ -336,14 +369,14 @@ GW.define('Filesystem', 'object', {
 					// ok.ha = b64(aes(h.8 h.8, master_key))        
 					// ok.k = b64(aes(share_key_for_h, master_key)) 
 
-					var h = C.ub64dec(ok.h);
+					var h = Duktape.Buffer(ok.h);
 					var ha = C.aes_dec(this.session.getMasterKey(), C.ub64dec(ok.ha));
 					var k = C.aes_dec(this.session.getMasterKey(), C.ub64dec(ok.k));
 
 					if (ha == C.joinbuf(h, h)) {
 						this.setShareKey(h, k);
 					} else {
-						Log.warning('Shakre key can\'t be authenticated ', ok);
+						Log.warning('Share key can\'t be authenticated ', ok);
 					}
 				}
 			}
@@ -360,6 +393,7 @@ GW.define('Filesystem', 'object', {
 			this.nodes['*NETWORK'] = {
 				name: 'Contacts',
 				type: NodeType.NETWORK,
+				parent_handle: '*TOP*',
 				handle: '*NETWORK',
 				size: 0,
 				mtime: 0
@@ -426,7 +460,7 @@ GW.define('Filesystem', 'object', {
 		var parts = [];
 		while (node) {
 			parts.push(node.name);
-			node = this.nodes[node.parent_handle];
+			node = this.nodes[node.parent_handle] || this.nodes[node.su_handle];
 		}
 
 		parts.reverse();
@@ -437,13 +471,22 @@ GW.define('Filesystem', 'object', {
 		this.children = {};
 
 		for (var handle in this.nodes) {
-			var node = this.nodes[handle];
+			var node = this.nodes[handle], children;
 			if (node.parent_handle) {
-				var children = this.children[node.parent_handle];
+				children = this.children[node.parent_handle];
 				if (children) {
 					children.push(node);
 				} else {
 					this.children[node.parent_handle] = [node];
+				}
+			}
+
+			if (node.su_handle) {
+				children = this.children[node.su_handle];
+				if (children) {
+					children.push(node);
+				} else {
+					this.children[node.su_handle] = [node];
 				}
 			}
 		}
