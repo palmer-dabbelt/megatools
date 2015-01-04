@@ -50,7 +50,7 @@ megatools_SOURCES = \
 	src/js.h \
 	src/js-http.c \
 	src/js-http.h \
-	src/js-misc.c \
+	src/js-misc.gen.c \
 	src/js-misc.h \
 	src/js-crypto.c \
 	src/js-crypto.h \
@@ -77,6 +77,20 @@ megatools_SOURCES += \
 	src/js-fuse-nop.c \
 	src/js-fuse.h
 endif
+
+sjson/sjson.gen.c: sjson/sjson.c
+	$(RE2C) -s -o $@ $<
+
+src/js-misc.gen.c: src/js-misc.c
+	$(RE2C) -s -o $@ $<
+
+BUILT_SOURCES += \
+	src/js-misc.gen.c \
+	sjson/sjson.gen.c
+
+EXTRA_DIST += \
+	src/js-misc.c \
+	sjson/sjson.c
 
 src/resources.c: src/resources.xml
 	glib-compile-resources --target=$@ --sourcedir $(top_srcdir) --generate-source $<
