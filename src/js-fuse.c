@@ -141,30 +141,30 @@ static gboolean emit_idle(Event* event)
 		switch (event->type) {
 			case EVENT_LOOKUP:
 				duk_push_pointer(ctx, event);
-				duk_push_uint(ctx, event->parent);
+				js_push_uint64(ctx, event->parent);
 				duk_push_string(ctx, event->name);
 				args = 3;
 				break;
 			case EVENT_GETATTR:
 				duk_push_pointer(ctx, event);
-				duk_push_uint(ctx, event->ino);
+				js_push_uint64(ctx, event->ino);
 				args = 2;
 				break;
 			case EVENT_READDIR:
 				duk_push_pointer(ctx, event);
-				duk_push_uint(ctx, event->ino);
+				js_push_uint64(ctx, event->ino);
 				args = 2;
 				break;
 			case EVENT_READ:
 				duk_push_pointer(ctx, event);
-				duk_push_uint(ctx, event->ino);
-				duk_push_uint(ctx, event->size);
-				duk_push_uint(ctx, event->off);
+				js_push_uint64(ctx, event->ino);
+				js_push_uint64(ctx, event->size);
+				js_push_uint64(ctx, event->off);
 				args = 4;
 				break;
 			case EVENT_OPEN:
 				duk_push_pointer(ctx, event);
-				duk_push_uint(ctx, event->ino);
+				js_push_uint64(ctx, event->ino);
 
 				int flags = event->fi->flags & O_ACCMODE;
 				if (flags == O_RDONLY)
@@ -331,7 +331,7 @@ static int js_reply_dir(duk_context* ctx)
 			if (duk_is_object(ctx, -1)) {
 				const gchar* name = js_get_object_string(ctx, -1, "name");
 				const gchar* type = js_get_object_string(ctx, -1, "type");
-				ino_t ino = js_get_object_uint(ctx, -1, "ino");
+				ino_t ino = js_get_object_uint64(ctx, -1, "ino");
 
 				if (name) {
 					add_dirent(buf, name, type && g_str_equal(type, "dir") ? S_IFDIR : S_IFREG, ino);
@@ -354,7 +354,7 @@ static int js_reply_attr(duk_context* ctx)
 	duk_to_object(ctx, 1);
 
 	const gchar* type = js_get_object_string(ctx, 1, "type");
-	guint size = js_get_object_uint(ctx, 1, "size");
+	guint64 size = js_get_object_uint64(ctx, 1, "size");
 
 	const struct fuse_ctx* fc = fuse_req_ctx(event->req);
 	struct stat stbuf;
@@ -383,8 +383,8 @@ static int js_reply_entry(duk_context* ctx)
 	duk_to_object(ctx, 1);
 
 	const gchar* type = js_get_object_string(ctx, 1, "type");
-	guint ino = js_get_object_uint(ctx, 1, "ino");
-	guint size = js_get_object_uint(ctx, 1, "size");
+	guint64 ino = js_get_object_uint64(ctx, 1, "ino");
+	guint64 size = js_get_object_uint64(ctx, 1, "size");
 
 	struct fuse_entry_param e;
 	const struct fuse_ctx* fc = fuse_req_ctx(event->req);
