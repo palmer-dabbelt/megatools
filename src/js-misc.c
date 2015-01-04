@@ -383,6 +383,39 @@ static int js_shell_quote(duk_context *ctx)
 	return 1;
 }
 
+static int js_handle_to_inode(duk_context *ctx)
+{
+	duk_size_t len;
+	const guchar* handle = duk_require_lstring(ctx, 0, &len);
+	guint64 ino = 0;
+	guint i;
+
+	if (len != 8) {
+		duk_error(ctx, DUK_ERR_API_ERROR, "Handle must have 8 characters");
+	}
+
+	for (i = 0; i < 8; i++) {
+		ino |= (guint64)handle[i] << (i * 8);
+	}
+
+	js_push_uint64(ctx, ino);
+	return 1;
+}
+
+static int js_inode_to_handle(duk_context *ctx)
+{
+	guint64 ino = js_require_uint64(ctx, 0);
+	gc_free guchar* handle = g_malloc0(9);
+	guint i;
+
+	for (i = 0; i < 8; i++) {
+		handle[i] = (ino >> (i * 8)) & 0xff;
+	}
+
+	duk_push_string(ctx, handle);
+	return 1;
+}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "timeout", js_timeout, 2 },
@@ -402,6 +435,8 @@ static const duk_function_list_entry module_funcs[] =
 	{ "file_node_key_unpack", js_file_node_key_unpack, 1 },
 	{ "buftojsonstring", js_buftojsonstring, 1 },
 	{ "shell_quote", js_shell_quote, 1 },
+	{ "handle_to_inode", js_handle_to_inode, 1 },
+	{ "inode_to_handle", js_inode_to_handle, 1 },
 	{ NULL, NULL, 0 }
 };
 

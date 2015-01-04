@@ -29,5 +29,20 @@ GW.define('TestSuite.Session', 'TestSuite', {
 				test.fail(code + ': ' + message);
 			});
 		}
+	}, {
+		name: 'ino',
+		run: function() {
+			var handles = ['XNtUATTD', 'bN1gAawa', 'icVVwDZI'];
+
+			_(handles).each(function(hok) {
+				var ino = C.handle_to_inode(hok);
+				var h = C.inode_to_handle(ino);
+
+				print(hok + ': ' + ino);
+				this.assertEq(hok, h, 'hok != h');
+			}, this);
+
+			this.done();
+		}
 	}]
 });
