@@ -1,15 +1,24 @@
 GW.define('Tool.FS', 'tool', {
 	order: 2000,
 	name: 'fs',
-	description: 'Mount mega.co.nz filesystem using FUSE',
+	description: 'Mount mega.co.nz filesystem using FUSE.',
 	usages: [
-               '<mountpoint>'
+               '[-f] <mountpoint>'
 	],
 
 	allowArgs: true,
 	getOptsSpecCustom: function() {
-		return [].concat(this.loginOpts);
+		return [{
+		    argHelp: '<mountpoint>',
+		    help: 'Local directory where the filesystem should be mounted.'
+		}, {
+		    longName: 'foreground',
+		    shortName: 'f',
+		    help: 'Run filesystem in foreground mode.'
+		}].concat(this.loginOpts);
 	},
+
+//Some useful options may be: kernel_cache, auto_cache, allow_other, allow_root, nonempty.
 
 	examples: [{
 		title: 'Mount filesystem',

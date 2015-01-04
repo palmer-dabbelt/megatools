@@ -144,6 +144,10 @@ GW.define('Tool', 'object', {
 			print('');
 		}
 
+		print('Usage:');
+		app.helpUsage(this.name, this.usages);
+		print('');
+
 		if (this.detail) {
 			print(_.map(this.detail, function(ln) {
 				return Utils.breakLine(ln);
@@ -151,12 +155,8 @@ GW.define('Tool', 'object', {
 			print('');
 		}
 
-		print('Usage:');
-		app.helpUsage(this.name, this.usages);
-		print('');
-
 		function optLeftSide(opt) {
-			return _.compact([opt.shortName ? '-' + opt.shortName : null, opt.longName ? '--' + opt.longName + (opt.argHelp ? ' ' + opt.argHelp : '') : null]).join(', ');
+			return _.compact([_.compact([opt.shortName ? '-' + opt.shortName : null, opt.longName ? '--' + opt.longName : null]).join(', '), (opt.argHelp ? opt.argHelp : '')]).join(' ');
 		}
 
 		var leftColumnWidth = 2 + 1 + _(this.getOptsSpec()).reduce(function(res, opt) {
@@ -168,13 +168,17 @@ GW.define('Tool', 'object', {
 		print('Application Options:');
 		_(this.getOptsSpec()).each(function(opt) {
 			var left = optLeftSide(opt);
+			var lns = _.isArray(opt.help) ? opt.help : opt.help.split('\n');
 
-			print(Utils.breakLine('  ' + left + space.substr(left.length + 2) + ' ' + opt.help, leftColumnWidth + 1));
+			print(Utils.breakLine('  ' + left + space.substr(left.length + 2) + ' ' + lns.shift(), leftColumnWidth + 1));
+			_.each(lns, function(ln) {
+				print(Utils.breakLine(space + ' ' + ln, leftColumnWidth + 1));
+			});
 		});
 		print('');
 
 		_(this.examples || []).each(function(ex, idx) {
-			print('Example ' + (idx + 1) + ': ' + ex.title);
+			print(Utils.breakLine('Example ' + (idx + 1) + ': ' + ex.title));
 			print('');
 
 			if (ex.commands) {
