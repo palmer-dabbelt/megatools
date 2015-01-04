@@ -317,6 +317,8 @@ GW.define('Filesystem', 'object', {
 			c: 1,
 			r: 1
 		}).done(function(r) {
+			var i, l;
+
 			this.nodes = {};
 			this.nodes['*TOP*'] = {
 				name: '',
@@ -326,11 +328,56 @@ GW.define('Filesystem', 'object', {
 				mtime: 0
 			};
 
+			if (r.ok) {
+				for (i = 0, l = r.ok.length; i < l; i++) {
+					var ok = r.ok[i];
+
+					// ok.h = h.8                                   
+					// ok.ha = b64(aes(h.8 h.8, master_key))        
+					// ok.k = b64(aes(share_key_for_h, master_key)) 
+
+					var h = C.ub64dec(ok.h);
+					var ha = C.aes_dec(this.session.getMasterKey(), C.ub64dec(ok.ha));
+					var k = C.aes_dec(this.session.getMasterKey(), C.ub64dec(ok.k));
+
+					if (ha == C.joinbuf(h, h)) {
+						this.setShareKey(h, k);
+					} else {
+						Log.warning('Shakre key can\'t be authenticated ', ok);
+					}
+				}
+			}
+
 			if (r.f) {
-				for (var i = 0; i < r.f.length; i++) {
+				for (i = 0, l = r.f.length; i < l; i++) {
 					var node = this.importNode(r.f[i]);
 					if (node) {
 						this.nodes[node.handle] = node;
+					}
+				}
+			}
+
+			this.nodes['*NETWORK'] = {
+				name: 'Contacts',
+				type: NodeType.NETWORK,
+				handle: '*NETWORK',
+				size: 0,
+				mtime: 0
+			};
+
+			if (r.u) {
+				for (i = 0, l = r.u.length; i < l; i++) {
+					var u = r.u[i];
+
+					if (u.c == 1) {
+						this.nodes[u.u] = {
+							name: u.m,
+							type: NodeType.CONTACT,
+							handle: u.u,
+							parent_handle: '*NETWORK',
+							size: 0,
+							mtime: u.ts
+						};
 					}
 				}
 			}
