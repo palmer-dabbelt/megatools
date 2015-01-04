@@ -527,6 +527,51 @@ static int js_path_simplify(duk_context *ctx)
 	return 1;
 }
 
+static gboolean is_email_valid(const gchar* email)
+{
+  const gchar* email_regex =
+   "(?(DEFINE)                                                                                           " 
+   "  (?<addr_spec>       (?&local_part) \\@ (?&domain))                                                 " 
+   "  (?<local_part>      (?&dot_atom) | (?&quoted_string))                                              " 
+   "  (?<domain>          (?&dot_atom) | (?&domain_literal))                                             " 
+   "  (?<domain_literal>  (?&CFWS)? \\[ (?: (?&FWS)? (?&dcontent))* (?&FWS)? \\] (?&CFWS)?)              " 
+   "  (?<dcontent>        (?&dtext) | (?&quoted_pair))                                                   " 
+   "  (?<dtext>           (?&NO_WS_CTL) | [\\x21-\\x5a\\x5e-\\x7e])                                      " 
+   "  (?<atext>           (?&ALPHA) | (?&DIGIT) | [!#\\$%&'*+-/=?^_`{|}~])                               " 
+   "  (?<atom>            (?&CFWS)? (?&atext)+ (?&CFWS)?)                                                " 
+   "  (?<dot_atom>        (?&CFWS)? (?&dot_atom_text) (?&CFWS)?)                                         " 
+   "  (?<dot_atom_text>   (?&atext)+ (?: \\. (?&atext)+)*)                                               " 
+   "  (?<text>            [\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])                                            " 
+   "  (?<quoted_pair>     \\\\ (?&text))                                                                 " 
+   "  (?<qtext>           (?&NO_WS_CTL) | [\\x21\\x23-\\x5b\\x5d-\\x7e])                                 " 
+   "  (?<qcontent>        (?&qtext) | (?&quoted_pair))                                                   " 
+   "  (?<quoted_string>   (?&CFWS)? (?&DQUOTE) (?:(?&FWS)? (?&qcontent))* (?&FWS)? (?&DQUOTE) (?&CFWS)?) " 
+   "  (?<word>            (?&atom) | (?&quoted_string))                                                  " 
+   "  (?<phrase>          (?&word)+)                                                                     " 
+   "  (?<FWS>             (?: (?&WSP)* (?&CRLF))? (?&WSP)+)                                              " 
+   "  (?<ctext>           (?&NO_WS_CTL) | [\\x21-\\x27\\x2a-\\x5b\\x5d-\\x7e])                           " 
+   "  (?<ccontent>        (?&ctext) | (?&quoted_pair) | (?&comment))                                     " 
+   "  (?<comment>         \\( (?: (?&FWS)? (?&ccontent))* (?&FWS)? \\) )                                 " 
+   "  (?<CFWS>            (?: (?&FWS)? (?&comment))* (?: (?:(?&FWS)? (?&comment)) | (?&FWS)))            " 
+   "  (?<NO_WS_CTL>       [\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f])                                       " 
+   "  (?<ALPHA>           [A-Za-z])                                                                      " 
+   "  (?<DIGIT>           [0-9])                                                                         " 
+   "  (?<CRLF>            \\x0d \\x0a)                                                                   " 
+   "  (?<DQUOTE>          \" )                                                                           " 
+   "  (?<WSP>             [\\x20\\x09])                                                                  " 
+   ")                                                                                                    " 
+   "(?&addr_spec)";
+
+  return g_regex_match_simple(email_regex, email, G_REGEX_EXTENDED | G_REGEX_ANCHORED, 0);
+}
+
+static int js_email_valid(duk_context *ctx)
+{
+	const guchar* str = duk_require_string(ctx, 0);
+	duk_push_boolean(ctx, is_email_valid(str));
+	return 1;
+}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "timeout", js_timeout, 2 },
@@ -549,6 +594,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "handle_to_inode", js_handle_to_inode, 1 },
 	{ "inode_to_handle", js_inode_to_handle, 1 },
 	{ "path_simplify", js_path_simplify, 1 },
+	{ "email_valid", js_email_valid, 1 },
 	{ NULL, NULL, 0 }
 };
 

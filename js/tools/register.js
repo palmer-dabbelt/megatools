@@ -96,6 +96,12 @@ GW.define('Tool.REGISTER', 'tool', {
 			return;
 		}
 
+		if (opts.email && !C.email_valid(opts.email)) {
+			Log.error('Invalid email address ' + opts.email + '!');
+			defer.reject(10);
+			return;
+		}
+
 		if (opts.confirm) {
 			if (opts['signup-link']) {
 				signupCode = extractSignupCode(opts['signup-link']);
