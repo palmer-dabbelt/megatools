@@ -232,7 +232,7 @@ var NodeType = {
 	FOLDER: 1,
 	ROOT: 2,
 	INBOX: 3,
-	TRASH: 4,
+	RUBBISH: 4,
 	NETWORK: 9,
 	CONTACT: 8,
 	TOP: 9
@@ -326,8 +326,8 @@ GW.define('Filesystem', 'object', {
 			}
 		}
 
-		if (n.type == NodeType.TRASH) {
-			n.name = "Trash";
+		if (n.type == NodeType.RUBBISH) {
+			n.name = "Rubbish";
 		} else if (n.type == NodeType.INBOX) {
 			n.name = "Inbox";
 		} else if (n.type == NodeType.ROOT) {
