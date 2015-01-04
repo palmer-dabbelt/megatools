@@ -171,3 +171,44 @@ const gchar* js_get_object_string(duk_context* ctx, duk_idx_t index, const gchar
 
 	return str;
 }
+
+guint64 js_get_object_uint64(duk_context* ctx, duk_idx_t index, const gchar* name)
+{
+	guint64 v = 0;
+
+	duk_get_prop_string(ctx, index, name);
+
+	if (duk_is_string(ctx, -1) || duk_is_number(ctx, -1)) {
+		v = js_require_uint64(ctx, -1);
+	}
+
+	duk_pop(ctx);
+
+	return v;
+}
+
+guint64 js_require_uint64(duk_context* ctx, duk_idx_t idx)
+{
+	if (duk_is_number(ctx, idx))
+		return (guint64)duk_get_uint(ctx, idx);
+	else if (duk_is_string(ctx, idx)) {
+		guint64 v;
+		const char* str = duk_get_string(ctx, idx);
+
+		if (sscanf(str, "%" G_GUINT64_FORMAT, &v) != 1) {
+			duk_error(ctx, DUK_ERR_API_ERROR, "String is not formatted as a number");
+		}
+
+		return v;
+	} else {
+		duk_error(ctx, DUK_ERR_TYPE_ERROR, "Must be number or string");
+	}
+}
+
+void js_push_uint64(duk_context* ctx, guint64 v)
+{
+	if (v > DUK_UINT_MAX)
+		duk_push_sprintf(ctx, "%" G_GUINT64_FORMAT, (guint64)v);
+	else
+		duk_push_uint(ctx, (duk_uint_t)v);
+}

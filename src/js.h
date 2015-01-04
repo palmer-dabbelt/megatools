@@ -15,5 +15,9 @@ duk_context*	js_ref_push		(JsRef* ref);
 gboolean	js_get_object_function	(duk_context* ctx, duk_idx_t index, const gchar* name);
 guint		js_get_object_uint	(duk_context* ctx, duk_idx_t index, const gchar* name);
 const gchar*	js_get_object_string	(duk_context* ctx, duk_idx_t index, const gchar* name);
+guint64		js_get_object_uint64	(duk_context* ctx, duk_idx_t index, const gchar* name);
+
+guint64		js_require_uint64(duk_context* ctx, duk_idx_t idx);
+void		js_push_uint64(duk_context* ctx, guint64 v);
 
 #endif
