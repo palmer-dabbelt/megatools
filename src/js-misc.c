@@ -14,6 +14,16 @@
 #include "sjson.h"
 #include "alloc.h"
 
+/*!re2c
+  re2c:define:YYCTYPE  = "guchar";
+  re2c:define:YYCURSOR = c;
+  re2c:define:YYMARKER = m;
+  re2c:define:YYCTXMARKER = cm;
+  re2c:yyfill:enable   = 0;
+  re2c:yych:conversion = 1;
+  re2c:indent:top      = 1;
+*/
+
 static int js_joinbuf(duk_context* ctx)
 {
 	duk_idx_t i, nargs = duk_get_top(ctx);
@@ -416,6 +426,107 @@ static int js_inode_to_handle(duk_context *ctx)
 	return 1;
 }
 
+#define MAX_PARTS 100
+
+static gchar* path_simplify(const gchar* path)
+{
+	const guchar* c = (const guchar*)path;
+	const guchar* m = NULL;
+	const guchar* cm = NULL;
+	const guchar* s;
+
+	g_return_val_if_fail(path != NULL, NULL);
+
+	guint subroot = 0;
+	guint next_part = 0;
+
+	typedef struct {
+		const guchar* s;
+		gsize l;
+	} part;
+
+	part* parts = g_newa(part, MAX_PARTS);
+
+	while (TRUE) {
+		s = c;
+/*!re2c
+		NUL = "\000";
+		ANY = . | "\n";
+
+		".." / [/\000] {
+			if (next_part > 0) {
+				next_part--;
+			} else if (path[0] != '/') {
+				subroot++;
+			}
+			continue;
+		}
+
+		"." / [/\000] {
+			continue;
+		}
+
+		"/" {
+			continue;
+		}
+
+		[^/\000]+ {
+			if (next_part >= MAX_PARTS) {
+				return NULL;
+			}
+
+			parts[next_part].s = s;
+			parts[next_part].l = c - s;
+			next_part++;
+			continue;
+		}
+
+		NUL {
+			break;
+		}
+
+		ANY {
+			g_assert_not_reached();
+		}
+*/
+	}
+
+	GString* str = g_string_sized_new(c - s);
+
+        if (path[0] == '/') {
+		g_string_append_c(str, '/');
+	}
+
+	guint i;
+	for (i = 0; i < subroot; i++) {
+		g_string_append(str, "../");
+	}
+
+	for (i = 0; i < next_part; i++) {
+		g_string_append_len(str, parts[i].s, parts[i].l);
+		g_string_append_c(str, '/');
+	}
+
+	if (str->len == 0) {
+		g_string_append_c(str, '.');
+	} else if (str->len > 1) {
+		g_string_set_size(str, str->len - 1);
+	}
+
+	return g_string_free(str, FALSE);
+}
+
+static int js_path_simplify(duk_context *ctx)
+{
+	const guchar* str = duk_require_string(ctx, 0);
+	gc_free gchar* tmp = path_simplify(str);
+	if (tmp)
+		duk_push_string(ctx, tmp);
+	else
+		duk_push_undefined(ctx);
+	return 1;
+}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "timeout", js_timeout, 2 },
@@ -437,6 +548,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "shell_quote", js_shell_quote, 1 },
 	{ "handle_to_inode", js_handle_to_inode, 1 },
 	{ "inode_to_handle", js_inode_to_handle, 1 },
+	{ "path_simplify", js_path_simplify, 1 },
 	{ NULL, NULL, 0 }
 };
 

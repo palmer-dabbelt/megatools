@@ -2,6 +2,31 @@ GW.define('TestSuite.Session', 'TestSuite', {
 	name: 'session',
 
 	tests: [{
+		name: 'path',
+		run: function() {
+			var paths = {
+				'/': '/',
+				'.': '.',
+				'./': '.',
+				'./../.': '..',
+				'../qwe/': '../qwe',
+				'../qwe/.qwe': '../qwe/.qwe',
+				'../qwe/...': '../qwe/...',
+				'../..///': '../..',
+				'../../qwe/..': '../..',
+				'../..///asdf/asdfasdfasdf/asdfsdgsdfgfg/../sdfgsdfgsdfg/../../qwe////./././.': '../../asdf/qwe'
+			};
+
+			_(paths).each(function(sp_good, p) {
+				var sp = C.path_simplify(p);
+
+				print(p + ' -> ' + sp);
+				this.assertEq(sp, sp_good, 'sp != sp_good');
+			}, this);
+
+			this.done();
+		}
+	}, {
 		name: 'open',
 		run: function() {
 			var test = this;
