@@ -226,14 +226,16 @@ var NodeType = {
 	INBOX: 3,
 	TRASH: 4,
 	NETWORK: 9,
-	CONTACT: 8
+	CONTACT: 8,
+	TOP: 9
 };
 
 GW.define('Filesystem', 'object', {
 
 	initObject: function() {
-		this.nodes = [];
+		this.nodes = {};
 		this.pathMap = {};
+		this.children = {};
 		this.share_keys = [];
 	},
 
@@ -252,7 +254,7 @@ GW.define('Filesystem', 'object', {
 
 		n.type = data.t;
 		n.handle = data.h;
-		n.parent_handle = data.p;
+		n.parent_handle = data.p || '*TOP*';
 		n.user = data.u;
 		n.size = data.s;
 		n.mtime = data.ts;
@@ -315,19 +317,48 @@ GW.define('Filesystem', 'object', {
 			c: 1,
 			r: 1
 		}).done(function(r) {
-			this.nodes = [];
+			this.nodes = {};
+			this.nodes['*TOP*'] = {
+				name: '',
+				type: NodeType.TOP,
+				handle: '*TOP*',
+				size: 0,
+				mtime: 0
+			};
 
 			if (r.f) {
 				for (var i = 0; i < r.f.length; i++) {
 					var node = this.importNode(r.f[i]);
 					if (node) {
-						this.nodes.push(node);
+						this.nodes[node.handle] = node;
 					}
 				}
 			}
 
 			this.mapPaths();
+			this.mapChildren();
 		}, this);
+	},
+
+	getNodeByHandle: function(handle) {
+		return this.nodes[handle];
+	},
+
+	mapPaths: function() {
+                this.pathMap = {};
+
+		for (var handle in this.nodes) {
+			var node = this.nodes[handle];
+
+			node.path = this.getNodePath(node);
+			if (node.path) {
+				if (this.pathMap[node.path]) {
+					node.path += '.' + node.handle;
+				}
+
+				this.pathMap[node.path] = node;
+			}
+		}
 	},
 
 	getPaths: function() {
@@ -340,35 +371,39 @@ GW.define('Filesystem', 'object', {
 		return paths.sort();
 	},
 
-	getNode: function(path) {
+	getNodeByPath: function(path) {
 		return this.pathMap[path];
 	},
 
-	mapPaths: function() {
-                var me = this;
+	getNodePath: function(node) {
+		var parts = [];
+		while (node) {
+			parts.push(node.name);
+			node = this.nodes[node.parent_handle];
+		}
 
-		function map(parentHandle, basePath) {
-			for (var i = 0; i < me.nodes.length; i++) {
-				var n = me.nodes[i];
+		parts.reverse();
+		return parts.join('/');
+	},
 
-				if ((n.parent_handle && parentHandle && n.parent_handle == parentHandle) || (!parentHandle && !n.parent_handle)) {
-					var path = basePath + "/" + n.name;
+	mapChildren: function() {
+		this.children = {};
 
-					if (me.pathMap[path]) {
-						path += "." + n.handle;
-					}
-
-					me.pathMap[path] = n;
-					n.path = path;
-
-					if (n.type != NodeType.FILE) {
-						map(n.handle, path);
-					}
+		for (var handle in this.nodes) {
+			var node = this.nodes[handle];
+			if (node.parent_handle) {
+				var children = this.children[node.parent_handle];
+				if (children) {
+					children.push(node);
+				} else {
+					this.children[node.parent_handle] = [node];
 				}
 			}
 		}
+	},
 
-		map(null, "");
+	getChildren: function(node) {
+		return this.children[node.handle] || [];
 	},
 
 	getShareKey: function(handle) {
