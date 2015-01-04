@@ -11,6 +11,8 @@ Defer.defer = function(init, scope) {
 	}
 
 	var defer = {
+		isDeferred: true,
+
 		getState: function() {
 			return state || 'pending';
 		},
@@ -139,12 +141,17 @@ Defer.when = function(defers) {
 	return totalDefer;
 };
 
-Defer.chain = function(runners) {
+Defer.chain = function(runners, scope) {
 	return Defer.defer(function(defer) {
 		function runNext() {
 			var runner = runners.shift();
 			if (runner) {
-				runner.apply(null, arguments).then(function() {
+				var nextDefer = runner.apply(scope || defer, arguments);
+				if (!nextDefer || !nextDefer.isDeferred) {
+					throw new Error('Chain runner did not return a deferred object');
+				}
+
+				nextDefer.then(function() {
 					runNext.apply(null, arguments);
 				}, defer.reject);
 			} else {
