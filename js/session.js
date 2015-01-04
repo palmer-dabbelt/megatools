@@ -244,11 +244,11 @@ GW.define('Filesystem', 'object', {
 		this.nodes = {};
 		this.pathMap = {};
 		this.children = {};
-		this.share_keys = [];
+		this.shared_keys = {};
 	},
 
 	getData: function() {
-		return Duktape.Buffer(Duktape.enc('jx', {nodes: this.nodes, share_keys: this.share_keys}));
+		return Duktape.Buffer(Duktape.enc('jx', {nodes: this.nodes, shared_keys: this.shared_keys}));
 	},
 
 	setData: function(data) {
@@ -382,7 +382,7 @@ GW.define('Filesystem', 'object', {
 					var k = C.aes_dec(this.session.getMasterKey(), C.ub64dec(ok.k));
 
 					if (ha == C.joinbuf(h, h)) {
-						this.setShareKey(h, k);
+						this.setShareKey(ok.h, k);
 					} else {
 						Log.warning('Share key can\'t be authenticated ', ok);
 					}
@@ -511,11 +511,11 @@ GW.define('Filesystem', 'object', {
 	},
 
 	getShareKey: function(handle) {
-		return this.share_keys[handle];
+		return this.shared_keys[handle];
 	},
 
 	setShareKey: function(handle, key) {
-		this.share_keys[handle] = key;
+		this.shared_keys[handle] = key;
 	}
 });
 
