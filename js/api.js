@@ -303,6 +303,8 @@ GW.define('MegaAPI', 'object', {
 	 * Returns user object from mega and master key.
 	 */
 	loginEphemeral: function(uh, password) {
+		this.setSessionId();
+
 		return Defer.defer(function(defer) {
 			this.callSingle({
 				a: 'us',
@@ -313,7 +315,7 @@ GW.define('MegaAPI', 'object', {
 				var mk = C.aes_dec(pk, emk);
 
 				if (!this.tsOk(res.tsid, mk)) {
-					defer.reject('invalid_tsid', 'Invalid password');
+					defer.reject('invalid_tsid', 'Invalid password (TSID verification failed)');
 					return;
 				}
 
@@ -337,6 +339,8 @@ GW.define('MegaAPI', 'object', {
 	 * Login to normal account.
 	 */
 	login: function(email, password) {
+		this.setSessionId();
+
 		return Defer.defer(function(defer) {
 			var pk = C.aes_key_from_password(password);
 
@@ -348,11 +352,21 @@ GW.define('MegaAPI', 'object', {
                                 // decrypt mk
 				var emk = C.ub64dec(res.k);
 				var mk = C.aes_dec(pk, emk);
+				var sid;
 
-				var sid = C.rsa_decrypt_sid(res.privk, mk, res.csid);
-				if (!sid) {
-					defer.reject('sid_decrypt_fail', 'Invalid password (CSID decryption failed)');
-					return;
+				if (res.csid) {
+					sid = C.rsa_decrypt_sid(res.privk, mk, res.csid);
+					if (!sid) {
+						defer.reject('sid_decrypt_fail', 'Invalid password (CSID decryption failed)');
+						return;
+					}
+				} else if (res.tsid) {
+					if (!this.tsOk(res.tsid, mk)) {
+						defer.reject('invalid_tsid', 'Invalid password (TSID verification failed)');
+						return;
+					}
+
+					sid = res.tsid;
 				}
 
 				this.setSessionId(sid);
@@ -544,6 +558,54 @@ GW.define('MegaAPI', 'object', {
 			_.extend(data, res);
 
 			this.setArgs(data);
+		});
+	},
+
+	completeUserReset: function(code, email, password) {
+		var me = this;
+		var data = {};
+		var mk = C.aes_key_random();
+		var pk = C.aes_key_from_password(password);
+		var emk = C.aes_enc(pk, mk);
+		var ts1 = C.random(16);
+		var ts2 = C.aes_enc(mk, ts1);
+
+		return Defer.chain([
+			function() {
+				return me.callSingle({
+					a: "erx",
+					c: code,
+					x: C.ub64enc(emk),
+					y: C.make_username_hash(pk, email),
+					z: C.ub64enc(C.joinbuf(ts1, ts2))
+				});
+			},
+
+			function() {
+				return me.login(email, password);
+			},
+
+			function(res) {
+				_.extend(data, res);
+
+				data.rsa = C.rsa_generate(data.mk);
+
+				return me.updateUser({
+					pubk: data.rsa.pubk,
+					privk: data.rsa.privk
+				});
+			}
+		]).done(function() {
+			this.setArgs(data);
+		});
+
+	},
+
+	requestUserReset: function(email) {
+		return this.callSingle({
+			a: "erm",
+			m: email,
+			t: 10
 		});
 	}
 });

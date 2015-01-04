@@ -15,6 +15,7 @@ jsfiles = \
 	js/tool.js \
 	js/tools/register.js \
 	js/tools/passwd.js \
+	js/tools/reset.js \
 	js/tools/info.js \
 	js/tools/df.js \
 	js/main.js
