@@ -66,6 +66,7 @@ GW.define('Tool.LS', 'tool', {
 	},
 
 	run: function(defer) {
+		var opts = this.opts;
 		var data = {};
 
 		Defer.chain([
@@ -82,7 +83,37 @@ GW.define('Tool.LS', 'tool', {
 			function() {
 				var fs = data.session.getFilesystem();
 
-				Log.msg(fs.getPaths().join('\n'));
+				var nodes = [];
+				if (this.args.length > 0) {
+					nodes = _(this.args).chain().map(function(path) {
+						var n = fs.getNodeByPath(path);
+						if (n) {
+							if (n.type == NodeType.FILE) {
+								return n;
+							} else {
+								return fs.getChildren(n);
+							}
+						} else {
+							Log.warning('Path not found:', path);
+						}
+					}).compact().flatten().uniq(false, function(n) {
+						return n.handle;
+					}).value();
+				} else {
+					nodes = fs.getNodes();
+				}
+
+				if (opts.recursive) {
+					null;
+				}
+
+				nodes = _.sortBy(nodes, function(n) {
+					return n.path;
+				});
+
+				_.each(nodes, function(n) {
+					print(n.path + (n.type == NodeType.FILE ? '' : '/'));
+				});
 
 				return Defer.resolved();
 			}

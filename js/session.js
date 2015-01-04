@@ -446,6 +446,10 @@ GW.define('Filesystem', 'object', {
 		}, this);
 	},
 
+	getNodes: function() {
+		return _.values(this.nodes);
+	},
+
 	getNodeByHandle: function(handle) {
 		return this.nodes[handle];
 	},
@@ -478,7 +482,7 @@ GW.define('Filesystem', 'object', {
 	},
 
 	getNodeByPath: function(path) {
-		return this.pathMap[path];
+		return this.pathMap[C.path_simplify(path)];
 	},
 
 	getNodePath: function(node) {
