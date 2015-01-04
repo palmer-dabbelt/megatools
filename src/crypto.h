@@ -21,6 +21,7 @@ gboolean crypto_rsa_key_generate(const guchar* privk_enc_key, gchar** privk, gch
 GBytes* crypto_rsa_encrypt(const gchar* pubk, const guchar* plain, gsize len);
 GBytes* crypto_rsa_decrypt(const gchar* pubk, const gchar* privk, const guchar* privk_enc_key, const guchar* cipher, gsize len);
 gchar* crypto_rsa_decrypt_sid(const gchar* privk, const guchar* privk_enc_key, const gchar* csid);
+gchar* crypto_rsa_export(const gchar* pubk, const gchar* privk, const guchar* privk_enc_key);
 
 void crypto_randomness(guchar* buffer, gsize len);
 

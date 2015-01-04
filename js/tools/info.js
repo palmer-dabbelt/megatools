@@ -1,7 +1,7 @@
 GW.define('Tool.INFO', 'tool', {
 	order: 200,
 	name: 'info',
-	description: 'Shows user account information.',
+	description: 'Shows mega.co.nz user account information.',
 	usages: [
 		'[-s|--secrets] [--binary]'
 	],
@@ -12,12 +12,17 @@ GW.define('Tool.INFO', 'tool', {
 			shortName: 's',
 			help: "Display encryption keys"
 		}, { 
+			longName: "filesystem",
+			shortName: 'f',
+			help: "Display filesystem information"
+		}, { 
 			longName: "binary",
 			help: "Display encryption keys in binary encoding"
 		}].concat(this.loginOpts);
 	},
 
 	run: function(defer) {
+		var data = {};
 		var opts = this.opts;
 
 		function printOption(name, label, value) {
@@ -32,8 +37,43 @@ GW.define('Tool.INFO', 'tool', {
 			}
 		}
 
-		function showAccountQuota(session) {
-			return session.api.callSingle({a: 'uq', strg: 1, xfer: 1, pro: 1}).done(function(res) {
+		function binaryEnc(v) {
+			return Duktape.enc('jx', v).replace(/\|/g, '');
+		}
+
+		Defer.chain([
+			function() {
+				return this.getSession();
+			},
+
+			function(session) {
+				data.session = session;
+
+				printOption('USERNAME', 'Username', session.username);
+				printOption('UH', 'User handle', session.data.uh);
+				printOption('EMAIL', 'E-mail', session.data.user.email);
+				printOption('NAME', 'Real name', session.data.user.name);
+				printOption('CONFIRMED', 'Confirmed', session.data.user.c ? 'YES' : 'NO');
+
+				if (opts.secrets) {
+					printOption('PASSWORD', 'Password', session.password);
+					printOption('PK', 'Password key', opts.binary ? binaryEnc(session.pk) : C.ub64enc(session.pk));
+					printOption('MK', 'Master key', opts.binary ? binaryEnc(session.data.mk) : C.ub64enc(session.data.mk));
+					printOption('PUBK', 'RSA public key', session.data.pubk);
+					printOption('PRIVK', 'RSA private key (encrypted with MK)', session.data.privk);
+
+					var rsa = C.rsa_export(session.data.pubk, session.data.privk, session.data.mk);
+					if (rsa) {
+						_.each(rsa, function(k, h) {
+							printOption('RSA_KEY_' + h.toUpperCase(), 'RSA key ' + h, k);
+						});
+					}
+				}
+
+				return session.api.callSingle({a: 'uq', strg: 1, xfer: 1, pro: 1});
+			},
+
+			function(res) {
 				var typeMap = {
 					'0': "Free",
 					'1': "Pro I",
@@ -78,29 +118,42 @@ GW.define('Tool.INFO', 'tool', {
 				printOption('BANDWIDTH_SERVER', 'Server bandwidth', servbw_used);
 				printOption('BANDWIDTH_DOWNLOAD', 'Download bandwidth', downbw_used);
 				printOption('BANDWIDTH', 'Bandwidth', bw);
-			});
-		}
 
-		function binaryEnc(v) {
-			return Duktape.enc('jx', v).replace(/\|/g, '');
-		}
+				if (opts.filesystem) {
+					return data.session.getFilesystem().load();
+				} else {
+					return Defer.resolved();
+				}
+			},
 
-		this.getSession().then(function(session) {
-			printOption('USERNAME', 'Username', session.username);
-			printOption('UH', 'User handle', session.data.uh);
-			printOption('EMAIL', 'E-mail', session.data.user.email);
-			printOption('NAME', 'Real name', session.data.user.name);
-			printOption('CONFIRMED', 'Confirmed', session.data.user.c ? 'YES' : 'NO');
+			function() {
+				if (opts.filesystem) {
+					var fs = data.session.getFilesystem();
+					var stats = fs.getStats();
 
-			if (opts.secrets) {
-				printOption('PASSWORD', 'Password', session.password);
-				printOption('PK', 'Password key', opts.binary ? binaryEnc(session.pk) : C.ub64enc(session.pk));
-				printOption('MK', 'Master key', opts.binary ? binaryEnc(session.data.mk) : C.ub64enc(session.data.mk));
-				printOption('PUBK', 'RSA public key', session.data.pubk);
-				printOption('PRIVK', 'RSA private key (encrypted with MK)', session.data.privk);
+					printOption('FS_FILES', 'Files', stats.files);
+					printOption('FS_DIRS', 'Directories', stats.dirs);
+					printOption('FS_FAILURES', 'Failed nodes', stats.failed);
+
+					if (opts.secrets) {
+						_.each(fs.shared_keys, function(k, h) {
+							printOption('FS_SHAREDKEY_' + h, 'Shared key for ' + h, binaryEnc(k));
+						});
+
+						_.each(fs.nodes, function(n, h) {
+							if (n.key_full) {
+								printOption('FS_NODEKEY_' + h, 'Node key for ' + h, binaryEnc(n.key_full));
+							} else if (n.key) {
+								printOption('FS_NODEKEY_' + h, 'Node key for ' + h, binaryEnc(n.key));
+							}
+						});
+					}
+				}
+
+				return Defer.resolved();
 			}
-
-			showAccountQuota(session).then(defer.resolve, defer.reject);
+		], this).then(function() {
+			defer.resolve();
 		}, function(code, msg) {
 			Log.error(msg);
 			defer.reject(1);

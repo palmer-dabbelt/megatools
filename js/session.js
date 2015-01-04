@@ -245,6 +245,7 @@ GW.define('Filesystem', 'object', {
 		this.pathMap = {};
 		this.children = {};
 		this.shared_keys = {};
+		this.stats = {};
 	},
 
 	getData: function() {
@@ -360,6 +361,12 @@ GW.define('Filesystem', 'object', {
 		}).done(function(r) {
 			var i, l;
 
+			this.stats = {
+				files: 0,
+				dirs: 0,
+				failed: 0
+			};
+
 			this.nodes = {};
 			this.nodes['*TOP*'] = {
 				name: '',
@@ -400,6 +407,10 @@ GW.define('Filesystem', 'object', {
 					var node = this.importNode(r.f[i]);
 					if (node) {
 						this.nodes[node.handle] = node;
+						this.stats.files += node.type == 0 ? 1 : 0;
+						this.stats.dirs += node.type == 1 ? 1 : 0;
+					} else {
+						this.stats.failed += 1;
 					}
 				}
 			}
@@ -516,6 +527,11 @@ GW.define('Filesystem', 'object', {
 
 	setShareKey: function(handle, key) {
 		this.shared_keys[handle] = key;
+	},
+
+	getStats: function() {
+		return _.extend({
+		}, this.stats);
 	}
 });
 

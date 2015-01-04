@@ -234,6 +234,22 @@ static int js_rsa_generate(duk_context* ctx)
 	return 1;
 }
 
+static int js_rsa_export(duk_context* ctx)
+{
+	duk_size_t privk_enc_size;
+	const gchar* pubk = duk_require_string(ctx, 0);
+	const gchar* privk = duk_require_string(ctx, 1);
+	const guchar* privk_enc = duk_require_buffer(ctx, 2, &privk_enc_size);
+
+	if (privk_enc_size != 16)
+		duk_error(ctx, DUK_ERR_RANGE_ERROR, "key size must be 16, is %d", (int)privk_enc_size);
+
+	gc_free gchar* json = crypto_rsa_export(pubk, privk, privk_enc);
+	duk_push_string(ctx, json);
+	duk_json_decode(ctx, -1);
+	return 1;
+}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "random", js_random, 1 },
@@ -252,6 +268,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "rsa_decrypt", js_rsa_decrypt, 4 },
 	{ "rsa_decrypt_sid", js_rsa_decrypt_sid, 3 },
 	{ "rsa_generate", js_rsa_generate, 1 },
+	{ "rsa_export", js_rsa_export, 3 },
 	{ NULL, NULL, 0 }
 };
 

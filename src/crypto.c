@@ -5,12 +5,14 @@
 #include <nettle/rsa.h>
 #include <nettle/yarrow.h>
 #include <glib/gstdio.h>
+#include <stdlib.h>
 #ifdef G_OS_WIN32
 #include <windows.h>
 #include <wincrypt.h>
 #endif
 #include "crypto.h"
 #include "alloc.h"
+#include "sjson.h"
 
 // {{{ ub64
 
@@ -664,6 +666,38 @@ gchar* crypto_rsa_decrypt_sid(const gchar* privk, const guchar* privk_enc_key, c
 		return crypto_base64urlencode(g_bytes_get_data(b, NULL), 43);
 
 	return NULL;
+}
+
+void s_json_gen_member_mpi(SJsonGen* g, const gchar* name, mpz_t n)
+{
+	char* str = mpz_get_str(NULL, 10, n);
+	s_json_gen_member_string(g, name, str);
+	free(str);
+}
+
+gchar* crypto_rsa_export(const gchar* pubk, const gchar* privk, const guchar* privk_enc_key)
+{
+	gc_rsa_key_free struct rsa_key* key = rsa_key_load(pubk, privk, privk_enc_key);
+	if (!key)
+		return NULL;
+
+	SJsonGen* g = s_json_gen_new();
+	s_json_gen_start_object(g);
+
+	if (key->pubk_loaded) {
+		s_json_gen_member_mpi(g, "m", key->m);
+		s_json_gen_member_mpi(g, "e", key->e);
+	} 
+
+	if (key->privk_loaded) {
+		s_json_gen_member_mpi(g, "p", key->p);
+		s_json_gen_member_mpi(g, "q", key->q);
+		s_json_gen_member_mpi(g, "d", key->d);
+		s_json_gen_member_mpi(g, "u", key->u);
+	} 
+
+	s_json_gen_end_object(g);
+	return s_json_gen_done(g);
 }
 
 // }}}
