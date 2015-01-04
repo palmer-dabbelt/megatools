@@ -281,6 +281,20 @@ GW.define('MegaAPI', 'object', {
 
 	// }}}
 	// {{{ loginEphemeral
+	
+	tsOk: function(ts, mk) {
+		var tsbuf = C.ub64dec(ts);
+
+		if (tsbuf.length < 32) {
+			return false;
+		}
+
+		var ts1 = C.slicebuf(tsbuf, 0, 16);
+		var ts2a = C.slicebuf(tsbuf, tsbuf.length - 16, 16);
+		var ts2b = C.aes_enc(mk, ts1);
+
+		return ts2a == ts2b;
+	},
 
 	/**
 	 * Login to ephemeral account
@@ -296,19 +310,9 @@ GW.define('MegaAPI', 'object', {
 				var pk = C.aes_key_from_password(password);
 				var emk = C.ub64dec(res.k);
 				var mk = C.aes_dec(pk, emk);
-				var tsid = C.ub64dec(res.tsid);
 
-				if (tsid.length < 32) {
-					defer.reject('invalid_tsid_len', 'tsid too short');
-					return;
-				}
-
-				var ts1 = C.slicebuf(tsid, 0, 16);
-				var ts2 = C.slicebuf(tsid, tsid.length - 16, 16);
-				var ts2ok = C.aes_enc(mk, ts1);
-
-				if (ts2 != ts2ok) {
-					defer.reject('invalid_tsid', 'tsid was not verified');
+				if (!this.tsOk(res.tsid, mk)) {
+					defer.reject('invalid_tsid', 'Invalid password');
 					return;
 				}
 
@@ -344,10 +348,9 @@ GW.define('MegaAPI', 'object', {
 				var emk = C.ub64dec(res.k);
 				var mk = C.aes_dec(pk, emk);
 
-				// get rsa
 				var sid = C.rsa_decrypt_sid(res.privk, mk, res.csid);
 				if (!sid) {
-					defer.reject('sid_decrypt_fail', 'Can\'t decrypt SID');
+					defer.reject('sid_decrypt_fail', 'Invalid password (CSID decryption failed)');
 					return;
 				}
 

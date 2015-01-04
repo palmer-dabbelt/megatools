@@ -156,5 +156,29 @@ GW.define('TestSuite.API', 'TestSuite', {
 				test.fail(code + ': ' + message);
 			});
 		}
+	}, {
+		name: 'tsok',
+		run: function() {
+			var test = this;
+			var api = new MegaAPI();
+
+			var mt6ts = "g3GY0JTZkYHSpAGJ-NlJff5kDSpkTzj5Eihn7we88y0";
+			var mt4ts = "4TVLouaTpqANO_LPnHm5kpCd1Tjgdr6GgTxlCyIIfbQ";
+
+			function test_ts(ts, emk, p, expectGood) {
+				var pk = C.aes_key_from_password(p);
+				var mk = C.aes_dec(pk, C.ub64dec(emk));
+
+				if (!!expectGood != !!api.tsOk(ts, mk)) {
+					test.fail('Expectation for tsOk for ' + ts + ' ' + p + ' ' + emk + ' failed');
+				}
+			}
+
+			test_ts(mt6ts, 'tqhWYTX7YSZbDkhUsDhJ1w', 'qwe', true);
+			test_ts(mt6ts, 'tqhWYTX7YSZbDkhUsDhJ1w', 'asdf', false);
+			test_ts(mt4ts, 'rioXFMfNlWQbK2TTTn26mg', 'qwe', true);
+			test_ts(mt4ts, 'rioXFMfNlWQbK2TTTn26mg', 'qwer', false);
+			test.done();
+		}
 	}]
 });

@@ -155,7 +155,6 @@ GW.define('Session', 'object', {
 				return me.api.getUser().done(function(res) {
 					_.extend(me.data, res);
 
-                                        me.data.mk = C.aes_dec(me.pk, C.ub64dec(res.user.k));
 					me.data.uh = res.user.u;
 					me.data.pubk = res.user.pubk;
 					me.data.privk = res.user.privk;
@@ -166,9 +165,13 @@ GW.define('Session', 'object', {
 
 			function login() {
 				if (me.isEphemeral()) {
-					return me.api.loginEphemeral(me.username, me.password);
+					return me.api.loginEphemeral(me.username, me.password).done(function(res) {
+						me.data.mk = res.mk;
+					});
 				} else {
-					return me.api.login(me.username, me.password);
+					return me.api.login(me.username, me.password).done(function(res) {
+						me.data.mk = res.mk;
+					});
 				}
 			}
 
