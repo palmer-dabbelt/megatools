@@ -204,6 +204,14 @@ GW.define('Session', 'object', {
 		this.removeSessionFile('fs');
 	},
 
+	openExportedFolder: function(n, mk) {
+		this.data = {};
+		this.data.mk = mk;
+		this.data.isExportedFolder = true;
+
+		this.api.setSessionId(n, 'n');
+	},
+
 	// needs optimized C written code for fs cache/path mapping
 
 	getFilesystem: function() {
@@ -382,6 +390,12 @@ GW.define('Filesystem', 'object', {
 			}
 
 			if (r.f) {
+				if (this.session.data.isExportedFolder) {
+					r.f[0].p = null;
+
+					this.addShareKey(r.f[0].h, this.session.data.mk);
+				}
+
 				for (i = 0, l = r.f.length; i < l; i++) {
 					var node = this.importNode(r.f[i]);
 					if (node) {
