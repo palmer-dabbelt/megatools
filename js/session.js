@@ -244,12 +244,12 @@ GW.define('Filesystem', 'object', {
 		this.nodes = {};
 		this.pathMap = {};
 		this.children = {};
-		this.shared_keys = {};
+		this.share_keys = {};
 		this.stats = {};
 	},
 
 	getData: function() {
-		return Duktape.Buffer(Duktape.enc('jx', {nodes: this.nodes, shared_keys: this.shared_keys}));
+		return Duktape.Buffer(Duktape.enc('jx', {nodes: this.nodes, share_keys: this.share_keys}));
 	},
 
 	setData: function(data) {
@@ -525,12 +525,40 @@ GW.define('Filesystem', 'object', {
 		return this.children[node.handle] || [];
 	},
 
+	getChildrenDeep: function(node) {
+		var me = this;
+                var nodes = [];
+
+		function addChildren(node) {
+			var children = me.getChildren(node);
+			for (var i = 0; i < children.length; i++) {
+				nodes.push(children[i]);
+
+				if (children[i].type != NodeType.FILE) {
+					addChildren(children[i]);
+				}
+			}
+		}
+
+		if (node.type != NodeType.FILE) {
+			addChildren(node);
+		}
+
+		return nodes;
+	},
+
+	getSelfAndChildrenDeep: function(node) {
+		var nodes = this.getChildrenDeep(node);
+		nodes.unshift(node);
+		return nodes;
+	},
+
 	getShareKey: function(handle) {
-		return this.shared_keys[handle];
+		return this.share_keys[handle];
 	},
 
 	setShareKey: function(handle, key) {
-		this.shared_keys[handle] = key;
+		this.share_keys[handle] = key;
 	},
 
 	getStats: function() {

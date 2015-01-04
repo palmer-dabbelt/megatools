@@ -19,6 +19,7 @@ jsfiles = \
 	js/tools/info.js \
 	js/tools/df.js \
 	js/tools/ls.js \
+	js/tools/export.js \
 	js/tools/fs.js \
 	js/main.js
 

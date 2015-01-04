@@ -136,7 +136,7 @@ GW.define('Tool.INFO', 'tool', {
 					printOption('FS_FAILURES', 'Failed nodes', stats.failed);
 
 					if (opts.secrets) {
-						_.each(fs.shared_keys, function(k, h) {
+						_.each(fs.share_keys, function(k, h) {
 							printOption('FS_SHAREDKEY_' + h, 'Shared key for ' + h, binaryEnc(k));
 						});
 
