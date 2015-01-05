@@ -43,7 +43,9 @@ GW.define('Tool.INFO', 'tool', {
 
 		Defer.chain([
 			function() {
-				return this.getSession();
+				return this.getSession({
+					loadFilesystem: opts.filesystem
+				});
 			},
 
 			function(session) {
@@ -119,14 +121,6 @@ GW.define('Tool.INFO', 'tool', {
 				printOption('BANDWIDTH_DOWNLOAD', 'Download bandwidth', downbw_used);
 				printOption('BANDWIDTH', 'Bandwidth', bw);
 
-				if (opts.filesystem) {
-					return data.session.getFilesystem().load();
-				} else {
-					return Defer.resolved();
-				}
-			},
-
-			function() {
 				if (opts.filesystem) {
 					var fs = data.session.getFilesystem();
 					var stats = fs.getStats();

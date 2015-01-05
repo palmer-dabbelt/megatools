@@ -105,7 +105,9 @@ GW.define('Tool.DF', 'tool', {
 			}
 		}
 
-		this.getSession().then(function(session) {
+		this.getSession({
+			loadFilesystem: false
+		}).then(function(session) {
 			session.api.callSingle({a:'uq', strg:1, xfer:1, pro:1}).then(function(res) {
 				if (opts.total) {
 					printSize(res.mstrg);

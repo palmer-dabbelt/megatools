@@ -37,6 +37,13 @@ GW.define('Tool', 'object', {
 		help: "Display help message and exit."
 	}],
 
+	exportedFolderOpts: [{
+		longName: "folder-link",
+		arg: 'string',
+		help: "If exported folder link is provided, megatools will operate on the contents of an exported folder instead of the regular user account filesystem.",
+		argHelp: "URL" 
+	}],
+
 	loginOpts: [{
 		longName: "username",
 		shortName:  'u',
@@ -247,6 +254,17 @@ GW.define('Tool', 'object', {
 		return Defer.defer(function(defer) {
 			var creds = {};
 
+			if (this.opts['folder-link']) {
+				var m = this.opts['folder-link'].match(/https:\/\/mega\.co\.nz\/#F!([a-zA-Z0-9]{8})!([a-zA-Z0-9_-]{22})/);
+				if (!m) {
+					defer.reject('bad_opts', 'Invalid folder link. Use https://mega.co.nz/#F![handle]![sharekey]');
+					return;
+				}
+
+				creds.folderHandle = m[1];
+				creds.folderKey = C.ub64dec(m[2]);
+			}
+
 			if (this.opts.password && this.opts['password-file']) {
 				defer.reject('bad_opts', 'Conflicting options --password and --password-file');
 				return;
@@ -306,20 +324,46 @@ GW.define('Tool', 'object', {
 		});
 	},
 
-	getSession: function(noOpen) {
+	getSession: function(config) {
+		config = _.defaults(config || {}, {
+			loadFilesystem: true,
+			clear: false,
+			refresh: true
+		});
+
 		return Defer.defer(function(defer) {
 			var session = new Session();
+
+			function loadFilesystemIfNecessary() {
+				if (config.loadFilesystem) {
+					return session.getFilesystem().load();
+				}
+
+				return Defer.resolved();
+			}
 
 			this.getCredentials().then(function(creds) {
 				session.setCredentials(creds.username, creds.password);
 
-				if (!noOpen) {
-					session.open(true).then(function() {
+				if (creds.folderHandle && creds.folderKey) {
+					session.openExportedFolder(creds.folderHandle, creds.folderKey);
+
+					loadFilesystemIfNecessary().then(function() {
 						defer.resolve(session);
 					}, defer.reject);
-				} else {
-					defer.resolve(session);
+
+					return;
 				}
+
+				if (config.clear) {
+					session.close();
+				}
+
+				session.open(config.refresh).then(function() {
+					loadFilesystemIfNecessary().then(function() {
+						defer.resolve(session);
+					}, defer.reject);
+				}, defer.reject);
 			}, defer.reject);
 		}, this);
 	},

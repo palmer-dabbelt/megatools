@@ -52,7 +52,9 @@ GW.define('Tool.PASSWD', 'tool', {
 			var data = {};
 			Defer.chain([
 				function() {
-					return me.getSession();
+					return me.getSession({
+						loadFilesystem: false
+					});
 				},
 
 				function(session) {

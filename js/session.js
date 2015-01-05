@@ -400,7 +400,7 @@ GW.define('Filesystem', 'object', {
 				if (this.session.data.isExportedFolder) {
 					r.f[0].p = null;
 
-					this.addShareKey(r.f[0].h, this.session.data.mk);
+					this.setShareKey(r.f[0].h, this.session.data.mk);
 				}
 
 				for (i = 0, l = r.f.length; i < l; i++) {
@@ -415,28 +415,30 @@ GW.define('Filesystem', 'object', {
 				}
 			}
 
-			this.nodes['*NETWORK'] = {
-				name: 'Contacts',
-				type: NodeType.NETWORK,
-				parent_handle: '*TOP*',
-				handle: '*NETWORK',
-				size: 0,
-				mtime: 0
-			};
+			if (!this.session.data.isExportedFolder) {
+				this.nodes['*NETWORK'] = {
+					name: 'Contacts',
+					type: NodeType.NETWORK,
+					parent_handle: '*TOP*',
+					handle: '*NETWORK',
+					size: 0,
+					mtime: 0
+				};
 
-			if (r.u) {
-				for (i = 0, l = r.u.length; i < l; i++) {
-					var u = r.u[i];
+				if (r.u) {
+					for (i = 0, l = r.u.length; i < l; i++) {
+						var u = r.u[i];
 
-					if (u.c == 1) {
-						this.nodes[u.u] = {
-							name: u.m,
-							type: NodeType.CONTACT,
-							handle: u.u,
-							parent_handle: '*NETWORK',
-							size: 0,
-							mtime: u.ts
-						};
+						if (u.c == 1) {
+							this.nodes[u.u] = {
+								name: u.m,
+								type: NodeType.CONTACT,
+								handle: u.u,
+								parent_handle: '*NETWORK',
+								size: 0,
+								mtime: u.ts
+							};
+						}
 					}
 				}
 			}

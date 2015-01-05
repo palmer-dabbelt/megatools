@@ -62,12 +62,11 @@ GW.define('Tool.LS', 'tool', {
 				'If ommited, the entire remote filesystem is listed recursively.'
 			]
 
-		}].concat(this.loginOpts);
+		}].concat(this.loginOpts, this.exportedFolderOpts);
 	},
 
 	run: function(defer) {
 		var opts = this.opts;
-		var data = {};
 
 		Defer.chain([
 			function() {
@@ -75,13 +74,7 @@ GW.define('Tool.LS', 'tool', {
 			},
 
 			function(session) {
-				data.session = session;
-
-				return session.getFilesystem().load();
-			},
-
-			function() {
-				var fs = data.session.getFilesystem();
+				var fs = session.getFilesystem();
 
 				var nodes = [];
 				if (this.args.length > 0) {

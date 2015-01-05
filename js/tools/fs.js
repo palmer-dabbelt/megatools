@@ -135,7 +135,6 @@ GW.define('Tool.FS', 'tool', {
 	},
 
 	run: function(defer) {
-		var data = {};
 		if (this.args.length != 1) {
 			Log.error('You must provide exactly one argument - a mount point for the filesystem.');
 			defer.reject(10);
@@ -148,15 +147,7 @@ GW.define('Tool.FS', 'tool', {
 			},
 
 			function(session) {
-				data.session = session;
-
-				return session.getFilesystem().load();
-			},
-
-			function() {
-				var fs = data.session.getFilesystem();
-
-				return this.mount(fs, this.args[0]);
+				return this.mount(session.getFilesystem(), this.args[0]);
 			}
 		], this).then(function() {
 			defer.resolve();

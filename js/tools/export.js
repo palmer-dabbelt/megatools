@@ -33,7 +33,6 @@ GW.define('Tool.EXPORT', 'tool', {
 
 	run: function(defer) {
 		var opts = this.opts;
-		var data = {};
 
 		if (this.args.length == 0) {
 			Log.error('Please provide paths for files and folders to export');
@@ -47,15 +46,9 @@ GW.define('Tool.EXPORT', 'tool', {
 			},
 
 			function(session) {
-				data.session = session;
-
-				return session.getFilesystem().load();
-			},
-
-			function() {
-				var fs = data.session.getFilesystem();
-				var api = data.session.api;
-				var mk = data.session.data.mk;
+				var fs = session.getFilesystem();
+				var api = session.api;
+				var mk = session.data.mk;
 
 				api.startBatch();
 
@@ -144,7 +137,7 @@ GW.define('Tool.EXPORT', 'tool', {
 					});
 				}
 
-				return data.session.api.sendBatch();
+				return session.api.sendBatch();
 			}
 		], this).then(function() {
 			defer.resolve();
