@@ -236,6 +236,13 @@ GW.define('MegaAPI', 'object', {
 	// {{{ callSingle
 
 	callSingle: function(request) {
+		if (this.batch) {
+			var defer = Defer.defer();
+			defer.request = request;
+			this.batch.push(defer);
+			return defer;
+		}
+
 		return Defer.defer(function(defer) {
 			this.call([request]).then(function(responses) {
 				if (_.isNumber(responses[0]) && responses[0] < 0) {
@@ -247,6 +254,41 @@ GW.define('MegaAPI', 'object', {
 				}
 			}, defer.reject, this);
 		}, this);
+	},
+
+	// }}}
+	// {{{ startBatch
+
+	startBatch: function() {
+		this.batch = [];
+	},
+
+	// }}}
+	// {{{ sendBatch
+
+	sendBatch: function() {
+		var batch = this.batch;
+		this.batch = null;
+
+		if (batch && batch.length > 0) {
+			return this.call(_.pluck(batch, 'request')).then(function(responses) {
+				_.each(responses, function(response, idx) {
+					var defer = batch[idx];
+
+					if (_.isNumber(response) && response < 0) {
+						var code = this.getErrorName(response);
+
+						defer.reject(code, this.getErrorMessage(code));
+					} else {
+						defer.resolve(response);
+					}
+				});
+			}, function(code, msg) {
+				_.invoke(batch, 'reject', code, msg);
+			});
+		}
+
+		return Defer.resolved();
 	},
 
 	// }}}
