@@ -487,6 +487,44 @@ GW.define('Filesystem', 'object', {
 		return this.pathMap[C.path_simplify(path)];
 	},
 
+	getNodesForPaths: function(paths) {
+		return _(paths).chain().map(function(path) {
+			var n = this.getNodeByPath(path);
+			if (!n) {
+				Log.warning('Path not found:', path);
+				return null;
+			}
+
+			return n;
+		}, this).compact().uniq(false, function(n) {
+			return n.handle;
+		}).value();
+	},
+
+	getNodesForPathsDeep: function(paths) {
+		return _(this.getNodesForPaths(paths)).chain().map(function(n) {
+			if (n.type == NodeType.FILE) {
+				return n;
+			} else {
+				return this.getSelfAndChildrenDeep(n);
+			}
+		}, this).flatten().uniq(false, function(n) {
+			return n.handle;
+		}).value();
+	},
+
+	getChildNodesForPaths: function(paths, deep) {
+		return _(this.getNodesForPaths(paths)).chain().map(function(n) {
+			if (n.type == NodeType.FILE) {
+				return n;
+			} else {
+				return deep ? this.getChildrenDeep(n) : this.getChildren(n);
+			}
+		}, this).flatten().uniq(false, function(n) {
+			return n.handle;
+		}).value();
+	},
+
 	getNodePath: function(node) {
 		var parts = [];
 		while (node) {

@@ -72,7 +72,7 @@ GW.define('Tool.DF', 'tool', {
 		}
 
 		function fixed(v) {
-			return v.toFixed(2);
+			return Math.round(v);
 		}
 
 		function printSize(size, label, batchLabel) {
@@ -83,15 +83,7 @@ GW.define('Tool.DF', 'tool', {
 			} else if (opts.gb) {
 				size = fixed(size / 1024 / 1024 / 1024);
 			} else if (opts.human) {
-				if (size < 1024 * 2) {
-					size = size + ' B';
-				} else if (size < 1024 * 1024 * 2) {
-					size = fixed(size / 1024) + ' KiB';
-				} else if (size < 1024 * 1024 * 1024 * 2) {
-					size = fixed(size / 1024 / 1024) + ' MiB';
-				} else {
-					size = fixed(size / 1024 / 1024 / 1024) + ' GiB';
-				}
+				size = Utils.humanSize(size);
 			}
 
 			if (label) {

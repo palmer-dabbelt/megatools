@@ -7,9 +7,6 @@ GW.define('Tool.LS', 'tool', {
 		'[-h] [-l] [-R] [<remotepaths>...]'
 	],
 
-	detail: [
-	],
-
 	examples: [{
 		title: 'List all files:',
 		commands: [
@@ -74,38 +71,46 @@ GW.define('Tool.LS', 'tool', {
 			},
 
 			function(session) {
-				var fs = session.getFilesystem();
+				var nodes, fs = session.getFilesystem();
 
-				var nodes = [];
 				if (this.args.length > 0) {
-					nodes = _(this.args).chain().map(function(path) {
-						var n = fs.getNodeByPath(path);
-						if (n) {
-							if (n.type == NodeType.FILE) {
-								return n;
-							} else {
-								return fs.getChildren(n);
-							}
-						} else {
-							Log.warning('Path not found:', path);
-						}
-					}).compact().flatten().uniq(false, function(n) {
-						return n.handle;
-					}).value();
+					nodes = fs.getChildNodesForPaths(this.args, opts.recursive);
 				} else {
 					nodes = fs.getNodes();
-				}
-
-				if (opts.recursive) {
-					null;
 				}
 
 				nodes = _.sortBy(nodes, function(n) {
 					return n.path;
 				});
 
+
+				var space = Utils.getSpace(40);
+				function align(s, len) {
+					s = String(s);
+
+					return space.substr(0, len - s.length) + s;
+				}
+				function pad(s, len) {
+					s = String(s);
+
+					return s + space.substr(0, len - s.length);
+				}
+
 				_.each(nodes, function(n) {
-					print(n.path + (n.type == NodeType.FILE ? '' : '/'));
+					var path = n.path + (n.type == NodeType.FILE ? '' : '/');
+
+					if (opts['long']) {
+						print([
+							pad(n.handle || '', 11), 
+							pad(n.user || '', 11), 
+							align(n.type, 1), 
+							align(n.type == NodeType.FILE ? (opts.human ? Utils.humanSize(n.size) : n.size) : '', 11), 
+							align(n.mtime ? C.date('%F %T', n.mtime) : '', 19), 
+							path
+						].join(' '));
+					} else {
+						print(path);
+					}
 				});
 
 				return Defer.resolved();

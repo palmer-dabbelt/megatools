@@ -43,5 +43,21 @@ Utils = {
 			buf[i] = 0;
 		}
 		return buf;
+	},
+
+	humanSize: function(size) {
+		function fixed(v) {
+			return v.toFixed(1);
+		}
+
+		if (size < 1024) {
+			return size + ' B';
+		} else if (size < 1024 * 1024) {
+			return fixed(size / 1024) + ' KiB';
+		} else if (size < 1024 * 1024 * 1024) {
+			return fixed(size / 1024 / 1024) + ' MiB';
+		} else {
+			return fixed(size / 1024 / 1024 / 1024) + ' GiB';
+		}
 	}
 };
