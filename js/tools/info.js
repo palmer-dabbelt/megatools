@@ -1,7 +1,7 @@
 GW.define('Tool.INFO', 'tool', {
 	order: 200,
 	name: 'info',
-	description: 'Shows mega.co.nz user account information.',
+	description: 'Show mega.co.nz user account information',
 	usages: [
 		'[-s|--secrets] [--binary]'
 	],

@@ -1,7 +1,7 @@
 GW.define('Tool.RESET', 'tool', {
 	order: 120,
 	name: 'reset',
-	description: 'Reset existing Mega.co.nz user account.',
+	description: 'Reset existing mega.co.nz user account',
 	usages: [
                '--email <email> [--save-config] [--config <path>]'
 	],

@@ -1,7 +1,7 @@
 GW.define('Tool.REGISTER', 'tool', {
 	order: 100,
 	name: 'register',
-	description: 'Registers new Mega.co.nz account.',
+	description: 'Register new mega.co.nz account',
 	usages: [
                '--ephemeral [--password <password> | --password-file <path>]',
                '--email <email> --name <realname> [--password <password> | --password-file <path>]',

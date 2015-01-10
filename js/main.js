@@ -61,7 +61,7 @@ GW.define('Application', 'object', {
 			'',
 			'Megatools are robust and optimized for fast operation - as fast as Mega servers allow. Memory requirements and CPU utilization are kept at minimum.',
 			'',
-			'You can register account using a man:megareg[1] tool, with the benefit of having true control of your encryption keys.',
+			'You can register account using a `register` command, with the benefit of having true control of your encryption keys.',
 			'',
 			'Mega website can be found at http://mega.co.nz.',
 			'',

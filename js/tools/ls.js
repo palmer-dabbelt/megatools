@@ -1,7 +1,7 @@
 GW.define('Tool.LS', 'tool', {
 	order: 500,
 	name: 'ls',
-	description: 'Lists files stored on Mega.co.nz.',
+	description: 'Lists remote files and folders',
 	allowArgs: true,
 	usages: [
 		'[-h] [-l] [-R] [<remotepaths>...]'

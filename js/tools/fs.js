@@ -1,7 +1,7 @@
 GW.define('Tool.FS', 'tool', {
 	order: 2000,
 	name: 'fs',
-	description: 'Mount mega.co.nz filesystem using FUSE.',
+	description: 'Mount remote filesystem using FUSE',
 	usages: [
                '[-f] <mountpoint>'
 	],

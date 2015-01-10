@@ -1,7 +1,7 @@
 GW.define('Tool.DF', 'tool', {
 	order: 300,
 	name: 'df',
-	description: 'Shows available, used and free space in the cloud.',
+	description: 'Show available, used and free space in the cloud',
 	usages: [
 		'[--free|--total|--used] [--kb|--mb|--gb|--human]'
 	],

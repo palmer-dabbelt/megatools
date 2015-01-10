@@ -1,7 +1,7 @@
 GW.define('Tool.EXPORT', 'tool', {
 	order: 510,
 	name: 'export',
-	description: 'Exports public download links for files and folders.',
+	description: 'Export public download links for files and folders',
 	allowArgs: true,
 	usages: [
 		'[--cancel|-c] <remotepaths>...'
