@@ -46,127 +46,112 @@ GW.define('Application', 'object', {
 		});
 	},
 
-	help: function() {
-		this.helpLines([
-			'Megatools is a collection of programs for accessing Mega service from a command line of your desktop or server.',
-			'',
-			'Usage:'
+	getHelp: function() {
+		var doc = new Document({
+			name: 'megatools',
+			description: 'Mega.co.nz command line tools'
+		});
+
+		doc.paragraphs([
+			'Megatools is a collection of programs for accessing Mega service from a command line of your desktop or server.'
 		]);
-		_(this.getTools()).each(function(tool) {
-			this.helpUsage(tool.name, tool.cls.prototype.usages);
-		}, this);
-		this.helpLines([
-			'',
+
+		var usages = _(this.getTools()).chain().map(function(tool) {
+			return _(tool.cls.prototype.usages).map(function(usage) {
+				return {
+					name: tool.name,
+                                        usage: usage
+				};
+			});
+		}, this).flatten().values();
+
+		doc.usage(usages);
+
+		doc.paragraphs([
 			'Megatools allow you to copy individual files as well as entire directory trees to and from the cloud. You can also perform streaming downloads for example to preview videos and audio files, without needing to download the entire file.',
-			'',
 			'Megatools are robust and optimized for fast operation - as fast as Mega servers allow. Memory requirements and CPU utilization are kept at minimum.',
-			'',
 			'You can register account using a `register` command, with the benefit of having true control of your encryption keys.',
-			'',
 			'Mega website can be found at http://mega.co.nz.',
-			'',
-			'Megatools can be downloaded at http://megatools.megous.com',
-			'',
-			'',
-			'Commands overview',
-			'=================',
-			''
+			'Megatools can be downloaded at http://megatools.megous.com'
 		]);
-		this.helpToolsOverview();
-		this.helpLines([
-			'',
-			'Get individual command help:',
-			'  $ megatools <command> --help',
-			'',
-			'',
-			'Configuration file',
-			'==================',
-			'',
-			'Megatools use configuration file to store commonly used login credentials. This makes it less bothersome and safer to use the tools, as you can simply write:',
-			'',
-			'  $ megadf',
-			'',
-			'instead of:',
-			'',
-			'  $ megadf --username my@email.com --password mypass',
-			'',
+
+		doc.heading('Commands overview');
+
+		var toolsOverview = _(this.getTools()).map(function(tool) {
+			return [tool.name, tool.cls.prototype.description];
+		});
+
+		doc.table(toolsOverview);
+
+		doc.paragraphs([
+			'Get individual command help:'
+		]);
+
+		doc.commands([
+			'$ megatools <command> --help'
+		]);
+
+		doc.heading('Configuration file');
+
+		doc.paragraphs([
+			'Megatools use configuration file to store commonly used login credentials. This makes it less bothersome and safer to use the tools, as you can simply write:'
+		]);
+
+		doc.commands([
+			'$ megadf'
+		]);
+
+		doc.paragraphs([
+			'instead of:'
+		]);
+
+		doc.commands([
+			'$ megadf --username my@email.com --password mypass'
+		]);
+
+		doc.paragraphs([
 			'when using the tools.',
-			'',
 			'Configuration file is read either from the current directory or user\'s home directory unless `--ignore-config` was passed to the tool, or when explicit path to the config file was given via `--config <path>`.',
-			'',
-			'Create .megarc (on linux) or mega.ini (on windows) file containing this 1 line:',
-			'',
-			'  { username: "your@email", password: "yourpassword" }',
-			'',
-			'You can let megatools create this configuration file for you automatically by specifying `--save-config` during registration, or other operations that change passwords.',
-			'',
-			'',
-			'Remote filesystem',
-			'=================',
-			'',
+			'Create .megarc (on linux) or mega.ini (on windows) file containing this 1 line:'
+		]);
+
+		doc.commands([
+			'{ username: "your@email", password: "yourpassword" }'
+		]);
+
+		doc.paragraphs([
+			'You can let megatools create this configuration file for you automatically by specifying `--save-config` during registration, or other operations that change passwords.'
+		]);
+
+		doc.heading('Remote filesystem');
+
+		doc.paragraphs([
 			'Mega.co.nz filesystem is represented as a tree of nodes of various types. Nodes are identified by a 8 character node handles (eg. `7Fdi3ZjC`). Structure of the filesystem is not encrypted.',
-			'',
 			'Megatools maps node tree structure to a traditional filesystem paths (eg. `/Root/SomeFile.DAT`).',
-			'',
-			'*NOTE*: By the nature of Mega.co.nz storage, several files in the directory can have the same name. To allow access to such files, the names of conflicting files are extended by appending dot and their node handle like this:',
-			'',
-			'---------',
+			'*NOTE*: By the nature of Mega.co.nz storage, several files in the directory can have the same name. To allow access to such files, the names of conflicting files are extended by appending dot and their node handle like this:'
+		]);
+
+		doc.commands([
 			'/Root/conflictingfile',
 			'/Root/conflictingfile.7Fdi3ZjC',
-			'/Root/conflictingfile.mEU23aSD',
-			'---------',
-			'',
-			'You need to be aware of several special folders:',
-			''
+			'/Root/conflictingfile.mEU23aSD'
 		]);
-		this.helpDescriptionList([
+
+		doc.paragraphs([
+			'You need to be aware of several special folders:'
+		]);
+
+		doc.definitions([
 			['/Root', 'Writable directory representing the root of the filesystem.'],
 			['/Rubbish', 'Trash directory where Mega.co.nz web client moves deleted files. This directory is not used by megatools when removing files.'],
 			['/Inbox', 'Not sure.'],
 			['/Contacts', 'Directory containing subdirectories representing your contacts list. If you want to add contacts to the list, simply create subdirectory named after the contact you want to add.'],
 			['/Contacts/<email>', 'Directories representing individual contacts in your contacts list. These directories contain folders that others shared with you. All shared files are read-only, at the moment.']
 		]);
-		this.helpLines([
-			''
-		]);
-		this.helpFooter();
-	},
 
-	helpUsage: function(name, usages) {
-		_(usages || []).each(function(usage) {
-			print(Utils.breakLine('  megatools ' + name + ' ' + usage, 4));
-		});
-	},
-	
-	helpLines: function(lines) {
-		_(lines).each(function(ln) {
-			print(Utils.breakLine(ln));
-		});
-	},
+		doc.footer();
 
-	helpDescriptionList: function(items) {
-		_(items).each(function(item) {
-			print(Utils.breakLine(item[0]));
-			print('');
-			print(Utils.breakLine('  ' + item[1], 2));
-			print('');
-		});
-	},
-	
-	helpToolsOverview: function() {
-		var leftCol = 11;
-		var space = Utils.getSpace(leftCol);
-		_(this.getTools()).each(function(tool) {
-			print(Utils.breakLine('  ' + tool.name + space.substr(tool.name.length) + tool.cls.prototype.description, leftCol + 2));
-		}, this);
-	},
-
-	helpFooter: function() {
-		print('Megatools ' + C.version + ' - command line tools for Mega.co.nz');
-		print('Written by Ondřej Jirman <megous@megous.com>, 2014');
-		print('Go to http://megatools.megous.com for more information');
-		print('Report bugs at https://github.com/megous/megatools/issues');
-		print('');
+		return doc;
 	},
 
 	runTool: function(tool, cmd) {
@@ -201,7 +186,7 @@ GW.define('Application', 'object', {
 	run: function() {
 		var cmd = this.getCommand();
 		if (!cmd) {
-			this.help();
+			this.getHelp().toScreen();
 			C.exit(1);
 		} else if (cmd.name == 'test') {
 			this.runTests(cmd);
@@ -210,8 +195,8 @@ GW.define('Application', 'object', {
 			if (tool) {
 				this.runTool(new tool.cls, cmd);
 			} else {
-				this.help();
-				C.exit(1);
+				Log.error('Unknown command', cmd.name);
+				C.exit(10);
 			}
 		}
 	}

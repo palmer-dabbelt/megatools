@@ -145,75 +145,42 @@ GW.define('Tool', 'object', {
 		return true;
 	},
 
-	help: function() {
-		if (this.description) {
-			print(Utils.breakLine(this.description));
-			print('');
-		}
-
-		print('Usage:');
-		app.helpUsage(this.name, this.usages);
-		print('');
-
-		if (this.detail) {
-			print(_.map(this.detail, function(ln) {
-				return Utils.breakLine(ln);
-			}).join('\n'));
-			print('');
-		}
-
-		function optLeftSide(opt) {
-			return _.compact([_.compact([opt.shortName ? '-' + opt.shortName : null, opt.longName ? '--' + opt.longName : null]).join(', '), (opt.argHelp ? opt.argHelp : '')]).join(' ');
-		}
-
-		var leftColumnWidth = 2 + 1 + _(this.getOptsSpec()).reduce(function(res, opt) {
-			return Math.max(res, optLeftSide(opt).length);
-		}, 0);
-
-		var space = Utils.getSpace(leftColumnWidth);
-
-		print('Application Options:');
-		_(this.getOptsSpec()).each(function(opt) {
-			var left = optLeftSide(opt);
-			var lns = _.isArray(opt.help) ? opt.help : opt.help.split('\n');
-
-			print(Utils.breakLine('  ' + left + space.substr(left.length + 2) + ' ' + lns.shift(), leftColumnWidth + 1));
-			_.each(lns, function(ln) {
-				print(Utils.breakLine(space + ' ' + ln, leftColumnWidth + 1));
-			});
+	getHelp: function() {
+		var doc = new Document({
+			name: 'megatools-' + this.name,
+			description: this.description
 		});
-		print('');
 
-		_(this.examples || []).each(function(ex, idx) {
-			print(Utils.breakLine('Example ' + (idx + 1) + ': ' + ex.title));
-			print('');
+		if (this.description) {
+			doc.paragraphs([this.description]);
+		}
 
-			if (ex.commands) {
-				_(ex.commands).each(function(c) {
-					print(Utils.breakLine('  ' + c, 4));
-				});
-
-				print('');
-			} else if (ex.steps) {
-				_(ex.steps).each(function(s) {
-					if (s.description) {
-						print(Utils.breakLine('  ' + s.description, 2));
-					}
-
-					_(s.commands).each(function(c) {
-						print(Utils.breakLine('    ' + c, 6));
-					});
-
-					print('');
-				});
-			}
+		var usages = _(this.usages).map(function(usage) {
+			return {
+				name: this.name,
+				usage: usage
+			};
 		}, this);
 
-		app.helpFooter();
+		doc.usage(usages);
+
+		if (this.detail) {
+			doc.paragraphs(this.detail);
+		}
+
+		doc.options(this.getOptsSpec());
+
+		doc.examples(this.examples);
+
+		doc.footer();
+
+		return doc;
 	},
 
 	version: function() {
-		app.helpFooter();
+		var doc = new Document();
+		doc.footer();
+		doc.toScreen();
 	},
 
 	loadConfig: function() {
@@ -388,7 +355,7 @@ GW.define('Tool', 'object', {
 		}
 
 		if (this.opts.help) {
-			this.help();
+			this.getHelp().toScreen();
 
 			return Defer.rejected(1);
 		}

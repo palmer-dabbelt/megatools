@@ -148,6 +148,7 @@ static gboolean run(gpointer data)
 	EVAL("/js/utils.js");
 	EVAL("/js/defer.js");
 	EVAL("/js/log.js");
+	EVAL("/js/docs.js");
 	EVAL("/js/api.js");
 	EVAL("/js/session.js");
 	EVAL("/js/test.js");

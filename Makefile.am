@@ -4,6 +4,7 @@ jsfiles = \
 	js/utils.js \
 	js/defer.js \
 	js/log.js \
+	js/docs.js \
 	js/api.js \
 	js/session.js \
 	js/test.js \
@@ -13,6 +14,7 @@ jsfiles = \
 	js/tests/http.js \
 	js/tests/timer.js \
 	js/tool.js \
+	js/tools/doc.js \
 	js/tools/register.js \
 	js/tools/passwd.js \
 	js/tools/reset.js \

@@ -263,6 +263,15 @@ static int js_file_exists(duk_context *ctx)
 	return 1;
 }
 
+static int js_dir_exists(duk_context *ctx)
+{
+	const gchar* path = duk_require_string(ctx, 0);
+
+	gboolean exists = g_file_test(path, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR);
+	duk_push_boolean(ctx, exists);
+	return 1;
+}
+
 static int js_file_remove(duk_context *ctx)
 {
 	const gchar* path = duk_require_string(ctx, 0);
@@ -583,6 +592,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "file_write", js_file_write, 2 },
 	{ "file_exists", js_file_exists, 1 },
 	{ "file_remove", js_file_remove, 1 },
+	{ "dir_exists", js_dir_exists, 1 },
 	{ "sha256_digest", js_sha256_digest, 1 },
 	{ "get_tmp_dir", js_get_tmp_dir, 0 },
 	{ "get_current_dir", js_get_current_dir, 0 },
