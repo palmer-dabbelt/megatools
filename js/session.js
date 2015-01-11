@@ -189,8 +189,12 @@ GW.define('Session', 'object', {
 
 					me.api.setSessionId(me.data.sid, me.data.sidParamName);
 
-					getUser().then(defer.resolve, function() {
-						loginAndGetUser();
+					getUser().then(defer.resolve, function(code, msg) {
+						if (code == 'ESID') {
+							loginAndGetUser();
+						} else {
+							defer.reject(code, msg);
+						}
 					});
 				}
 			} else {
