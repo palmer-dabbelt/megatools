@@ -563,6 +563,10 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 
 		connection->client = g_socket_client_new();
 
+		// disable proxy settings and dbus error
+		GProxyResolver* proxy_resolver = g_simple_proxy_resolver_new(NULL, NULL);
+		g_socket_client_set_proxy_resolver(connection->client, proxy_resolver);
+
 		g_socket_client_set_timeout(connection->client, 60);
 		g_socket_client_set_family(connection->client, G_SOCKET_FAMILY_IPV4);
 
@@ -574,7 +578,8 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 		g_socket_client_set_tls(connection->client, request->secure);
 		g_socket_client_set_tls_validation_flags(connection->client, G_TLS_CERTIFICATE_VALIDATE_ALL & ~G_TLS_CERTIFICATE_UNKNOWN_CA & ~G_TLS_CERTIFICATE_BAD_IDENTITY);
 
-		connection->conn = g_socket_client_connect_to_host(connection->client, request->host, request->port, NULL, &local_err);
+		gc_free gchar* uri = g_strdup_printf("%s://%s:%u", request->secure ? "https" : "http", request->host, request->port);
+		connection->conn = g_socket_client_connect_to_uri(connection->client, uri, request->port, NULL, &local_err);
 		if (!connection->conn) {
 			emit_error_propagate(request, local_err, "conn_fail", "Connection failed: ");
 			return FALSE;

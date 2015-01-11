@@ -226,6 +226,8 @@ int main(int argc, char* argv[])
 	g_setenv("CA_CERT_PATH", certs, TRUE);
 #endif
 
+	g_setenv("GSETTINGS_BACKEND", "memory", TRUE);
+
 #ifndef G_OS_WIN32
 	set_one_signal_handler(SIGPIPE, SIG_IGN);
 	set_one_signal_handler(SIGINT, on_sigint);
