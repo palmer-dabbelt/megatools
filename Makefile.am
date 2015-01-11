@@ -1,4 +1,4 @@
-tools = doc register passwd reset info df ls export fs
+tools = doc register passwd reset info df ls export fs contacts
 tests = crypto api session http timer
 
 jsfiles = \

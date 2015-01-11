@@ -640,7 +640,6 @@ GW.define('MegaAPI', 'object', {
 		]).done(function() {
 			this.setArgs(data);
 		});
-
 	},
 
 	requestUserReset: function(email) {

@@ -371,6 +371,8 @@ GW.define('Filesystem', 'object', {
 				failed: 0
 			};
 
+			this.contacts = [];
+
 			this.nodes = {};
 			this.nodes['*TOP*'] = {
 				name: '',
@@ -443,6 +445,13 @@ GW.define('Filesystem', 'object', {
 								mtime: u.ts
 							};
 						}
+
+						this.contacts.push({
+							email: u.m,
+							handle: u.u,
+							mtime: u.ts,
+							user: u
+						});
 					}
 				}
 			}
@@ -608,6 +617,18 @@ GW.define('Filesystem', 'object', {
 	getStats: function() {
 		return _.extend({
 		}, this.stats);
+	},
+
+	getContacts: function() {
+		return _(this.contacts).filter(function(c) {
+			return c.user.c == 1;
+		});
+	},
+
+	getContactByEmail: function(email) {
+		return _(this.getContacts()).find(function(c) {
+			return c.email == email;
+		});
 	}
 });
 
