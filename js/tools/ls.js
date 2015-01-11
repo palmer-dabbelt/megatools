@@ -83,29 +83,16 @@ GW.define('Tool.LS', 'tool', {
 					return n.path;
 				});
 
-
-				var space = Utils.getSpace(40);
-				function align(s, len) {
-					s = String(s);
-
-					return space.substr(0, len - s.length) + s;
-				}
-				function pad(s, len) {
-					s = String(s);
-
-					return s + space.substr(0, len - s.length);
-				}
-
 				_.each(nodes, function(n) {
 					var path = n.path + (n.type == NodeType.FILE ? '' : '/');
 
 					if (opts['long']) {
 						print([
-							pad(n.handle || '', 11), 
-							pad(n.user || '', 11), 
-							align(n.type, 1), 
-							align(n.type == NodeType.FILE ? (opts.human ? Utils.humanSize(n.size) : n.size) : '', 11), 
-							align(n.mtime ? C.date('%F %T', n.mtime) : '', 19), 
+							Utils.pad(n.handle || '', 11), 
+							Utils.pad(n.user || '', 11), 
+							Utils.align(n.type, 1), 
+							Utils.align(n.type == NodeType.FILE ? (opts.human ? Utils.humanSize(n.size) : n.size) : '', 11), 
+							Utils.align(n.mtime ? C.date('%F %T', n.mtime) : '', 19), 
 							path
 						].join(' '));
 					} else {

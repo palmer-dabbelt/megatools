@@ -273,7 +273,23 @@ GW.define('Filesystem', 'object', {
 		n.size = data.s;
 		n.mtime = data.ts;
 
-		// laod key
+		// process incomming share key from the other user sharing node with us
+		if (data.sk) {
+			var esk = C.ub64dec(data.sk), sk;
+			if (esk.length > 16) {
+				sk = C.rsa_decrypt(null, this.session.data.privk, this.session.data.mk, esk);
+			} else if (esk.length == 16) {
+				sk = C.aes_dec(this.session.data.mk, esk);
+			} else {
+				Log.warning('Can\'t decrypt share key for', data);
+			}
+
+			if (sk) {
+				this.setShareKey(n.handle, C.slicebuf(sk, 0, 16));
+			}
+		}
+
+		// decrypt key
 		if (data.k) {
 			//XXX: 46+ longer keys are RSA keys, handle them
 
@@ -339,21 +355,6 @@ GW.define('Filesystem', 'object', {
 			n.name = "Root";
 		}
 
-		if (data.sk) {
-			var esk = C.ub64dec(data.sk), sk;
-			if (sk.length > 16) {
-				sk = C.rsa_decrypt(this.session.data.privk, this.session.data.mk, sk);
-			} else if (sk.length == 16) {
-				sk = C.aes_dec(this.session.data.mk, sk);
-			} else {
-				Log.warning('Can\'t decrypt share key for', data);
-			}
-
-			if (sk) {
-				this.setShareKey(n.handle, C.slicebuf(sk, 0, 16));
-			}
-		}
-
 		return n;
 	},
 
@@ -372,6 +373,7 @@ GW.define('Filesystem', 'object', {
 			};
 
 			this.contacts = [];
+			this.shares = {};
 
 			this.nodes = {};
 			this.nodes['*TOP*'] = {
@@ -418,6 +420,19 @@ GW.define('Filesystem', 'object', {
 					} else {
 						this.stats.failed += 1;
 					}
+				}
+			}
+
+			if (r.s) {
+				for (i = 0, l = r.s.length; i < l; i++) {
+					var s = r.s[i];
+
+					this.shares[s.h] = {
+						handle: s.h,
+						user: s.u,
+						access: s.r,
+						mtime: s.ts
+					};
 				}
 			}
 
@@ -629,6 +644,25 @@ GW.define('Filesystem', 'object', {
 		return _(this.getContacts()).find(function(c) {
 			return c.email == email;
 		});
+	},
+
+	getContactByHandle: function(handle) {
+		return _(this.contacts).find(function(c) {
+			return c.handle == handle;
+		});
+	},
+
+	getShareByHandle: function(handle) {
+		return this.shares[handle];
+	},
+
+	getShares: function() {
+		return _(this.shares).map(function(s) {
+			s = _.extend({}, s);
+			s.node = this.getNodeByHandle(s.handle);
+			s.contact = this.getContactByHandle(s.user);
+			return s;
+		}, this);
 	}
 });
 

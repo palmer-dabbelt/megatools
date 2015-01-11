@@ -637,7 +637,8 @@ GBytes* crypto_rsa_encrypt(const gchar* pubk, const guchar* plain, gsize len)
 
 GBytes* crypto_rsa_decrypt(const gchar* pubk, const gchar* privk, const guchar* privk_enc_key, const guchar* cipher, gsize len)
 {
-	g_return_val_if_fail(pubk != NULL, NULL);
+	g_return_val_if_fail(privk != NULL, NULL);
+	g_return_val_if_fail(privk_enc_key != NULL, NULL);
 
 	gc_rsa_key_free struct rsa_key* key = rsa_key_load(pubk, privk, privk_enc_key);
 	if (!key)

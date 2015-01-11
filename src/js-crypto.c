@@ -186,7 +186,7 @@ static int js_rsa_encrypt(duk_context* ctx)
 static int js_rsa_decrypt(duk_context* ctx)
 {
 	duk_size_t privk_enc_size, cipher_size;
-	const gchar* pubk = duk_require_string(ctx, 0);
+	const gchar* pubk = duk_get_string(ctx, 0);
 	const gchar* privk = duk_require_string(ctx, 1);
 	const guchar* privk_enc = duk_require_buffer(ctx, 2, &privk_enc_size);
 	const guchar* cipher = duk_require_buffer(ctx, 3, &cipher_size);

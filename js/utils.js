@@ -59,5 +59,19 @@ Utils = {
 		} else {
 			return fixed(size / 1024 / 1024 / 1024) + ' GiB';
 		}
+	},
+
+	pad: function(s, len) {
+		s = String(s);
+
+		return s + Utils.space.substr(0, len - s.length);
+	},
+
+	align: function(s, len) {
+		s = String(s);
+
+		return Utils.space.substr(0, len - s.length) + s;
 	}
 };
+
+Utils.space = Utils.getSpace(200);
