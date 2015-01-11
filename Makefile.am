@@ -1,5 +1,5 @@
 tools = doc register passwd reset info df ls export fs contacts share
-tests = crypto api session http timer
+tests = crypto api session http timer misc
 
 jsfiles = \
 	js/libs/underscore-min.js \
