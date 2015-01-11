@@ -1,3 +1,6 @@
+tools = doc register passwd reset info df ls export fs
+tests = crypto api session http timer
+
 jsfiles = \
 	js/libs/underscore-min.js \
 	js/libs/gw.js \
@@ -8,21 +11,9 @@ jsfiles = \
 	js/api.js \
 	js/session.js \
 	js/test.js \
-	js/tests/crypto.js \
-	js/tests/api.js \
-	js/tests/session.js \
-	js/tests/http.js \
-	js/tests/timer.js \
+	$(addprefix js/tests/,$(addsuffix .js,$(tests))) \
 	js/tool.js \
-	js/tools/doc.js \
-	js/tools/register.js \
-	js/tools/passwd.js \
-	js/tools/reset.js \
-	js/tools/info.js \
-	js/tools/df.js \
-	js/tools/ls.js \
-	js/tools/export.js \
-	js/tools/fs.js \
+	$(addprefix js/tools/,$(addsuffix .js,$(tools))) \
 	js/main.js
 
 BUILT_SOURCES = src/resources.c src/resources.xml
@@ -84,10 +75,10 @@ megatools_SOURCES += \
 endif
 
 sjson/sjson.gen.c: sjson/sjson.c
-	$(RE2C) -s -o $@ $<
+	$(AM_V_GEN)$(RE2C) -s -o $@ $<
 
 src/js-misc.gen.c: src/js-misc.c
-	$(RE2C) -s -o $@ $<
+	$(AM_V_GEN)$(RE2C) -s -o $@ $<
 
 BUILT_SOURCES += \
 	src/js-misc.gen.c \
@@ -98,10 +89,20 @@ EXTRA_DIST += \
 	sjson/sjson.c
 
 src/resources.c: src/resources.xml
-	glib-compile-resources --target=$@ --sourcedir $(top_srcdir) --generate-source $<
+	$(AM_V_GEN)glib-compile-resources --target=$@ --sourcedir $(top_srcdir) --generate-source $<
 
 src/resources.xml: $(jsfiles)
-	$(srcdir)/resources.sh $(top_srcdir) > $@
+	$(AM_V_GEN)$(srcdir)/resources.sh $(top_srcdir) > $@
+
+manpages = $(addprefix docs/,$(addsuffix .1,$(addprefix megatools-,$(tools)) megatools))
+
+docs/%.1: megatools
+	mkdir -p docs/
+	$(AM_V_GEN)./megatools doc --output docs/ --format man $(patsubst docs/%.1,%,$@)
+
+man1_MANS = $(manpages)
+
+CLEANFILES += $(man1_MANS)
 
 EXTRA_DIST += LICENSE HACKING
 doc_DATA = LICENSE NEWS TODO README INSTALL HACKING

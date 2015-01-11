@@ -1,9 +1,10 @@
 GW.define('Tool.DOC', 'tool', {
 	order: 5000,
 	name: 'doc',
+	allowArgs: true,
 	description: 'Generate external documentation',
 	usages: [
-		'-o <path> -f [html|txt|man]'
+		'-o <path> -f [html|txt|man] <docs>...'
 	],
 
 	getOptsSpecCustom: function() {
@@ -74,8 +75,12 @@ GW.define('Tool.DOC', 'tool', {
 			});
 		});
 
+		files = _(files).filter(function(f) {
+			return this.args.length == 0 || this.args.indexOf(f.name) >= 0;
+		}, this);
+
 		_.each(files, function(f) {
-			var path = C.path_simplify(opts.output + '/' + f.name + '.' + opts.format);
+			var path = C.path_simplify(opts.output + '/' + f.name + renderer.suffix(f.doc));
 
 			if (!C.file_write(path, Duktape.Buffer(renderer.render(f.doc)))) {
 				Log.error("Can't write file '" + path + "'");

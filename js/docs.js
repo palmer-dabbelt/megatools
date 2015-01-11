@@ -99,6 +99,10 @@ GW.define('Document.Renderer', 'object', {
 		return this.out.join('');
 	},
 
+	suffix: function(doc) {
+		return '';
+	},
+
 	getEntriesByType: function(type) {
 		return _(this.doc.entries).filter(function(entry) {
 			return entry.type == type;
@@ -157,6 +161,10 @@ GW.define('Document.Renderer', 'object', {
 GW.define('Document.Renderer.Text', 'document.renderer', {
 	initObject: function() {
 		this.space = Utils.getSpace(200);
+	},
+
+	suffix: function(doc) {
+		return '.txt';
 	},
 
 	renderLine: function(ln, off) {
@@ -311,6 +319,10 @@ GW.define('Document.Renderer.Screen', 'document.renderer.text', {
                              
 GW.define('Document.Renderer.Man', 'document.renderer', {
 	manCategory: 1,
+
+	suffix: function(doc) {
+		return '.' + this.manCategory;
+	},
 
 	ln: function(ln) {
 		this.out.push(ln, '\n');
@@ -508,6 +520,10 @@ GW.define('Document.Renderer.Man', 'document.renderer', {
 });
 
 GW.define('Document.Renderer.Html', 'document.renderer', {
+	suffix: function(doc) {
+		return '.html';
+	},
+
 	ln: function(ln) {
 		this.out.push(ln, '\n');
 	},
