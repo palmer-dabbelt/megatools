@@ -1,3 +1,4 @@
+#include "config.h"
 #include <glib.h>
 #include <glib/gstdio.h>
 
@@ -6,6 +7,10 @@
 #else
 #include <termios.h>
 #include <unistd.h>
+#ifdef HAVE_NCURSES
+#include <curses.h>
+#include <term.h>
+#endif
 #endif
 
 #include "js-misc.h"
@@ -610,5 +615,16 @@ static const duk_function_list_entry module_funcs[] =
 
 void js_misc_init(duk_context* ctx)
 {
+#ifdef HAVE_NCURSES
+	setupterm(NULL, fileno(stdout), NULL);
+#endif
+
 	duk_put_function_list(ctx, -1, module_funcs);
+
+#if defined(G_OS_WIN32) || !defined(HAVE_NCURSES)
+	duk_push_boolean(ctx, 0);
+#else
+	duk_push_boolean(ctx, tigetnum("colors") > 2 && isatty(1));
+#endif
+	duk_put_prop_string(ctx, -2, "allow_color");
 }

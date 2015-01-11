@@ -19,10 +19,7 @@ AC_PATH_PROG(RE2C, re2c)
 GLIB_VERSION="2.32.0"
 NETTLE_REQUIRES="nettle >= 2.7 hogweed >= 2.7"
 FUSE_REQUIRES="fuse"
-MEGA_REQUIRES="gio-2.0 >= $GLIB_VERSION $NETTLE_REQUIRES"
-
-# for libmega.pc
-AC_SUBST(MEGA_REQUIRES)
+NCURSES_REQUIRES="ncurses"
 
 # check for glib/gio
 AM_PATH_GLIB_2_0([$GLIB_VERSION],,AC_MSG_ERROR([Glib $GLIB_VERSION or later is required to build megatools]),[gobject gio])
@@ -36,6 +33,27 @@ AC_CHECK_LIB(gmp,__gmpz_init,, [AC_MSG_ERROR([GNU MP not found, see http://swox.
 PKG_CHECK_MODULES(NETTLE, [$NETTLE_REQUIRES])
 AC_SUBST(NETTLE_CFLAGS)
 AC_SUBST(NETTLE_LIBS)
+
+# check ncurses
+AC_ARG_WITH([ncurses],
+  AS_HELP_STRING([--without-ncurses], [Ignore presence of ncurses and disable it]))
+
+AS_IF([test "x$with_ncurses" != "xno"],
+  [PKG_CHECK_MODULES(NCURSES, [$NCURSES_REQUIRES], [ENABLE_NCURSES=yes], [ENABLE_NCURSES=no])],
+  [ENABLE_NCURSES=no])
+
+AS_IF([test "x$ENABLE_NCURSES" = "xyes"],
+  [
+    AC_SUBST(NCURSES_CFLAGS)
+    AC_SUBST(NCURSES_LIBS)
+    AC_DEFINE(HAVE_NCURSES, 1, [Enable nurses])
+  ],
+    [AS_IF([test "x$with_ncurses" = "xyes"],
+      [AC_MSG_ERROR([ncurses support requested but not found])
+    ])
+])
+
+AM_CONDITIONAL([ENABLE_NCURSES], [test "x$ENABLE_NCURSES" = "xyes"])
 
 # check fuse
 AC_ARG_WITH([fuse],
@@ -79,7 +97,8 @@ cat << EOF
 Configured features:
 
   warnings: $enable_warnings
-  megatools fs: $ENABLE_FUSE (requires fuse)
+  color support: $ENABLE_NCURSES (requires ncurses)
+  FUSE support: $ENABLE_FUSE (requires fuse)
 
 Run make now.
 

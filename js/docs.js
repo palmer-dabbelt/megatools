@@ -80,9 +80,9 @@ GW.define('Document', 'object', {
 	},
 
 	toScreen: function() {
-		var renderer = new Document.Renderer.Text();
+		var renderer = new Document.Renderer[C.allow_color ? 'Screen' : 'Text']();
 		var text = renderer.render(this);
-
+		
 		print(text);
 	}
 });
@@ -295,7 +295,19 @@ GW.define('Document.Renderer.Text', 'document.renderer', {
 			}
 		}, this);
 	}
-});                          
+});
+
+GW.define('Document.Renderer.Screen', 'document.renderer.text', {
+	render: function() {
+		var out = Document.Renderer.Screen.parent.render.apply(this, arguments);
+
+		out = out
+			.replace(/\*([^\*]+)\*/g, '\033[1m$1\033[21m')
+			.replace(/`([^`]+)`/g, '\033[1m$1\033[21m');
+
+		return out;
+	}
+});
                              
 GW.define('Document.Renderer.Man', 'document.renderer', {
 	manCategory: 1,

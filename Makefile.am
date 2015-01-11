@@ -36,6 +36,7 @@ AM_CFLAGS = \
 	-DG_LOG_DOMAIN=\"Megatools\" \
 	$(GLIB_CFLAGS) \
 	$(NETTLE_CFLAGS) \
+	$(NCURSES_CFLAGS) \
 	-I$(srcdir)/src \
 	-I$(srcdir)/duktape \
 	-I$(srcdir)/sjson \
@@ -43,6 +44,7 @@ AM_CFLAGS = \
 
 LIBS = -lm -lgmp \
 	$(GLIB_LIBS) \
+	$(NCURSES_LIBS) \
 	$(NETTLE_LIBS)
 
 bin_PROGRAMS = megatools
