@@ -14,8 +14,8 @@ GW.define('TestSuite.Http', 'TestSuite', {
 						onload: function(data) {
 							defer.resolve(data);
 						},
-						onerror: function(err) {
-							defer.reject(err);
+						onerror: function(code, msg) {
+							defer.reject({code: code, msg: msg});
 						}
 					});
 
@@ -33,7 +33,7 @@ GW.define('TestSuite.Http', 'TestSuite', {
 					test.done();
 				} else {
 					var msg = _.map(rejected, function(d) {
-						return d.getArgs()[0].message;
+						return d.getArgs()[1];
 					}).join('\n');
 
 					test.fail('Request failed with ' + msg);

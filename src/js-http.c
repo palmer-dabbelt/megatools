@@ -29,12 +29,9 @@ static void event_callback(HttpRequest* request, HttpRequestEvent* event, JsRef*
 		gint nargs = 0;
 		if (event->type == HTTP_REQUEST_EVENT_ERROR) {
 			// push error object argument
-			duk_push_object(ctx);
 			duk_push_string(ctx, event->error_code);
-			duk_put_prop_string(ctx, -2, "code");
 			duk_push_string(ctx, event->error_message);
-			duk_put_prop_string(ctx, -2, "message");
-			nargs = 1;
+			nargs = 2;
 		} else if (event->type == HTTP_REQUEST_EVENT_COMPLETE) {
 			// push response body if request is not set to ondemand
 			if (!http_request_is_ondemand(request)) {
