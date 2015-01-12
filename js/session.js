@@ -600,6 +600,10 @@ GW.define('Filesystem', 'object', {
 			node = this.nodes[node.parent] || this.nodes[node.su_handle];
 		}
 
+		if (parts.length == 1) {
+			return '/';
+		}
+
 		parts.reverse();
 		return parts.join('/');
 	},
