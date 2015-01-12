@@ -18,10 +18,60 @@ GW.define('TestSuite.Session', 'TestSuite', {
 			};
 
 			_(paths).each(function(sp_good, p) {
-				var sp = C.path_simplify(p);
+				var sp = C.path_clean(p);
 
 				print(p + ' -> ' + sp);
 				this.assertEq(sp, sp_good, 'sp != sp_good');
+			}, this);
+
+			this.done();
+		}
+	}, {
+		name: 'pathup',
+		run: function() {
+			var paths = {
+				'/': '/',
+				'.': '..',
+				'./': '..',
+				'./../.': '../..',
+				'../qwe/': '..',
+				'../qwe/.qwe': '../qwe',
+				'../qwe/...': '../qwe',
+				'../..///': '../../..',
+				'../../qwe/..': '../../..',
+				'../..///asdf/asdfasdfasdf/asdfsdgsdfgfg/../sdfgsdfgsdfg/../../qwe////./././.': '../../asdf'
+			};
+
+			_(paths).each(function(sp_good, p) {
+				var sp = C.path_up(p);
+
+				print(p + ' -> ' + sp);
+				this.assertEq(sp, sp_good, 'sp != sp_good');
+			}, this);
+
+			this.done();
+		}
+	}, {
+		name: 'pathlast',
+		run: function() {
+			var paths = {
+				'/': null,
+				'.': null,
+				'./': null,
+				'./../.': null,
+				'../qwe/': 'qwe',
+				'../qwe/.qwe': '.qwe',
+				'../qwe/...': '...',
+				'../..///': null,
+				'../../qwe/..': null,
+				'../..///asdf/asdfasdfasdf/asdfsdgsdfgfg/../sdfgsdfgsdfg/../../qwe////./././.': 'qwe'
+			};
+
+			_(paths).each(function(sp_good, p) {
+				var sp = C.path_name(p);
+
+				print(p + ' -> ' + sp);
+				this.assertEq(sp, sp_good, 'sp != sp_good for (' + p + ')');
 			}, this);
 
 			this.done();

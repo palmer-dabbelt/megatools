@@ -80,7 +80,7 @@ GW.define('Tool.DOC', 'tool', {
 		}, this);
 
 		_.each(files, function(f) {
-			var path = C.path_simplify(opts.output + '/' + f.name + renderer.suffix(f.doc));
+			var path = C.path_clean(opts.output + '/' + f.name + renderer.suffix(f.doc));
 
 			if (!C.file_write(path, Duktape.Buffer(renderer.render(f.doc)))) {
 				Log.error("Can't write file '" + path + "'");

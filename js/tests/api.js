@@ -38,6 +38,38 @@ GW.define('TestSuite.API', 'TestSuite', {
 			this.done();
 		}
 	}, {
+		name: 'buffer align',
+		run: function() {
+			function buf(v) {
+				return Duktape.dec('hex', v);
+			}
+
+			var a = buf('001122');
+			var b = buf('00112233');
+			var a_4a = C.alignbuf(a, 4, false);
+			var a_4za = C.alignbuf(a, 4, true);
+			var b_4a = C.alignbuf(b, 4, false);
+			var b_4za = C.alignbuf(b, 4, true);
+
+			this.assertEq(a_4a, buf('00112200'), 'a_4a');
+			this.assertEq(a_4za, buf('00112200'), 'a_4za');
+			this.assertEq(b_4a, buf('00112233'), 'b_4a');
+			this.assertEq(b_4za, buf('0011223300000000'), 'b_4za');
+			this.done();
+		}
+	}, {
+		name: 'buffer zero',
+		run: function() {
+			function buf(v) {
+				return Duktape.dec('hex', v);
+			}
+
+			this.assertEq(C.zerobuf(4), buf('00000000'), 'zb4');
+			this.assertEq(C.zerobuf(1), buf('00'), 'zb1');
+			this.assertEq(C.zerobuf(0), buf(''), 'zb0');
+			this.done();
+		}
+	}, {
 		name: 'ephemeral',
 		run: function() {
 			var test = this;

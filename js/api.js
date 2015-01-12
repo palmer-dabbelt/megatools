@@ -463,7 +463,7 @@ GW.define('MegaAPI', 'object', {
 	 */
 	requestConfirmation: function(password, mk, name, email) {
 		var pk = C.aes_key_from_password(password);
-		var c_data = C.aes_enc(pk, C.joinbuf(mk, C.random(4), Utils.zeroBuf(8), C.random(4)));
+		var c_data = C.aes_enc(pk, C.joinbuf(mk, C.random(4), C.zerobuf(8), C.random(4)));
 
 		return this.callSingle({
 			a: 'uc',
@@ -567,7 +567,7 @@ GW.define('MegaAPI', 'object', {
 				data.password = password;
 
 				// check challenge
-				if (C.slicebuf(data.challenge, 4, 8) == Utils.zeroBuf(8)) {
+				if (C.slicebuf(data.challenge, 4, 8) == C.zerobuf(8)) {
 					defer.resolve(data);
 				} else {
 					defer.reject('bad_password', 'Invalid password');

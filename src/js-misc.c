@@ -69,6 +69,35 @@ static int js_slicebuf(duk_context* ctx)
 	return 1;
 }
 
+static int js_zerobuf(duk_context* ctx)
+{
+	duk_uint_t len = duk_get_uint(ctx, 0);
+	guchar* buf = duk_push_fixed_buffer(ctx, len);
+	memset(buf, '\0', len);
+	return 1;
+}
+
+static int js_alignbuf(duk_context* ctx)
+{
+	duk_size_t size;
+	guchar *buf = duk_require_buffer(ctx, 0, &size);
+	duk_uint_t bs = duk_require_uint(ctx, 1);
+	duk_uint_t zeropad = duk_get_boolean(ctx, 2) ? 1 : 0;
+
+	if (bs == 0) {
+		duk_error(ctx, DUK_ERR_API_ERROR, "Block size must be non zero");
+		return 1;
+	}
+
+	duk_size_t rem = ((size + zeropad) % bs);
+	duk_size_t pad = rem > 0 ? bs - rem : 0;
+
+	guchar* out = duk_push_fixed_buffer(ctx, size + zeropad + pad);
+	memcpy(out, buf, size);
+	memset(out + size, '\0', zeropad + pad);
+	return 1;
+}
+
 static gboolean js_timeout_callback(JsRef* ref)
 {
 	duk_context* ctx = js_ref_push(ref);
@@ -442,7 +471,7 @@ static int js_inode_to_handle(duk_context *ctx)
 
 #define MAX_PARTS 100
 
-static gchar* path_simplify(const gchar* path)
+static gchar* path_simplify(const gchar* path, gboolean level_up, gboolean last_part)
 {
 	const guchar* c = (const guchar*)path;
 	const guchar* m = NULL;
@@ -505,6 +534,24 @@ static gchar* path_simplify(const gchar* path)
 */
 	}
 
+	if (level_up) {
+		if (next_part > 0) {
+			next_part--;
+		} else {
+			if (path[0] != '/') {
+				subroot++;
+			}
+		}
+	}
+
+	if (last_part) {
+		if (next_part > 0) {
+			return g_strndup(parts[next_part - 1].s, parts[next_part - 1].l);
+		} else {
+			return NULL;
+		}
+	}
+
 	GString* str = g_string_sized_new(c - s);
 
         if (path[0] == '/') {
@@ -530,13 +577,35 @@ static gchar* path_simplify(const gchar* path)
 	return g_string_free(str, FALSE);
 }
 
-static int js_path_simplify(duk_context *ctx)
+static int js_path_clean(duk_context *ctx)
 {
 	const guchar* str = duk_require_string(ctx, 0);
-	gc_free gchar* tmp = path_simplify(str);
+	gc_free gchar* tmp = path_simplify(str, FALSE, FALSE);
 	if (tmp)
 		duk_push_string(ctx, tmp);
 	else
+		duk_push_undefined(ctx);
+	return 1;
+}
+
+static int js_path_up(duk_context *ctx)
+{
+	const guchar* str = duk_require_string(ctx, 0);
+	gc_free gchar* tmp = path_simplify(str, TRUE, FALSE);
+	if (tmp) {
+		duk_push_string(ctx, tmp);
+	} else
+		duk_push_undefined(ctx);
+	return 1;
+}
+
+static int js_path_name(duk_context *ctx)
+{
+	const guchar* str = duk_require_string(ctx, 0);
+	gc_free gchar* tmp = path_simplify(str, FALSE, TRUE);
+	if (tmp) {
+		duk_push_string(ctx, tmp);
+	} else
 		duk_push_undefined(ctx);
 	return 1;
 }
@@ -591,6 +660,8 @@ static const duk_function_list_entry module_funcs[] =
 	{ "timeout", js_timeout, 2 },
 	{ "joinbuf", js_joinbuf, DUK_VARARGS },
 	{ "slicebuf", js_slicebuf, 3 },
+	{ "zerobuf", js_zerobuf, 1 },
+	{ "alignbuf", js_alignbuf, 3 },
 	{ "prompt", js_prompt, 3 },
 	{ "date", js_date, 2 },
 	{ "file_read", js_file_read, 1 },
@@ -608,7 +679,9 @@ static const duk_function_list_entry module_funcs[] =
 	{ "shell_quote", js_shell_quote, 1 },
 	{ "handle_to_inode", js_handle_to_inode, 1 },
 	{ "inode_to_handle", js_inode_to_handle, 1 },
-	{ "path_simplify", js_path_simplify, 1 },
+	{ "path_clean", js_path_clean, 1 },
+	{ "path_up", js_path_up, 1 },
+	{ "path_name", js_path_name, 1 },
 	{ "email_valid", js_email_valid, 1 },
 	{ NULL, NULL, 0 }
 };

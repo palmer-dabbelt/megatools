@@ -37,14 +37,6 @@ Utils = {
 		return out.join('');
 	},
 
-	zeroBuf: function(len) {
-		var buf = Duktape.Buffer(len);
-		for (var i = 0; i < len; i++) {
-			buf[i] = 0;
-		}
-		return buf;
-	},
-
 	humanSize: function(size) {
 		function fixed(v) {
 			return v.toFixed(1);

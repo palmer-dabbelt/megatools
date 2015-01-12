@@ -512,7 +512,7 @@ GW.define('Filesystem', 'object', {
 	},
 
 	getNodeByPath: function(path) {
-		return this.pathMap[C.path_simplify(path)];
+		return this.pathMap[C.path_clean(path)];
 	},
 
 	getNodesForPaths: function(paths) {
@@ -527,6 +527,43 @@ GW.define('Filesystem', 'object', {
 		}, this).compact().uniq(false, function(n) {
 			return n.handle;
 		}).value();
+	},
+
+	getNodesForPathsRemoveChildren: function(paths) {
+		return _(this.getNodesForPaths(paths)).chain().sortBy(function(n) {
+			return n.path;
+		}).reduce(function(memo, n) {
+			if (memo.length) {
+				var prevPath = memo[memo.length - 1].path;
+
+				// if prevPath is parent of current path
+				if (prevPath == n.path.substr(0, prevPath.length)) {
+					return memo;
+				}
+			}
+
+			memo.push(n);
+			return memo;
+		}, []).value();
+	},
+
+	getNodesForPathsRemoveAncestors: function(paths) {
+		return _(this.getNodesForPaths(paths)).chain().sortBy(function(n) {
+			return n.path;
+		}).reduce(function(memo, n) {
+			if (memo.length) {
+				var prevPath = memo[memo.length - 1].path;
+
+				// if prevPath is parent of current path, replace node
+				if (prevPath == n.path.substr(0, prevPath.length)) {
+					memo[memo.length - 1] = n;
+					return memo;
+				}
+			}
+
+			memo.push(n);
+			return memo;
+		}, []).value();
 	},
 
 	getNodesForPathsDeep: function(paths) {
@@ -663,6 +700,10 @@ GW.define('Filesystem', 'object', {
 			s.contact = this.getContactByHandle(s.user);
 			return s;
 		}, this);
+	},
+
+	getRubbish: function() {
+		return this.getNodeByPath('/Rubbish');
 	}
 });
 
