@@ -282,10 +282,10 @@ GW.define('MegaAPI', 'object', {
 					} else {
 						defer.resolve(response);
 					}
-				});
+				}, this);
 			}, function(code, msg) {
 				_.invoke(batch, 'reject', code, msg);
-			});
+			}, this);
 		}
 
 		return Defer.resolved();
