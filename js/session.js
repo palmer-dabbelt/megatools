@@ -267,7 +267,7 @@ GW.define('Filesystem', 'object', {
 
 		n.type = data.t;
 		n.handle = data.h;
-		n.parent_handle = data.p || '*TOP*';
+		n.parent = data.p || '*TOP*';
 		n.su_handle = data.su;
 		n.user = data.u;
 		n.size = data.s;
@@ -311,6 +311,7 @@ GW.define('Filesystem', 'object', {
 						n.key = C.file_node_key_unpack(n.key_full);
 					} else {
 						n.key = C.aes_dec(decKey, keyData);
+						n.key_full = n.key;
 					}
 				} else {
 					Log.warning('No key found for node', data);
@@ -318,6 +319,8 @@ GW.define('Filesystem', 'object', {
 				}
 			}
 		}
+
+		n.a = data.a;
 
 		// decrypt attrs
 		if (n.key && data.a) {
@@ -440,7 +443,7 @@ GW.define('Filesystem', 'object', {
 				this.nodes['*NETWORK'] = {
 					name: 'Contacts',
 					type: NodeType.NETWORK,
-					parent_handle: '*TOP*',
+					parent: '*TOP*',
 					handle: '*NETWORK',
 					size: 0,
 					mtime: 0
@@ -455,7 +458,7 @@ GW.define('Filesystem', 'object', {
 								name: u.m,
 								type: NodeType.CONTACT,
 								handle: u.u,
-								parent_handle: '*NETWORK',
+								parent: '*NETWORK',
 								size: 0,
 								mtime: u.ts
 							};
@@ -594,7 +597,7 @@ GW.define('Filesystem', 'object', {
 		var parts = [];
 		while (node) {
 			parts.push(node.name);
-			node = this.nodes[node.parent_handle] || this.nodes[node.su_handle];
+			node = this.nodes[node.parent] || this.nodes[node.su_handle];
 		}
 
 		parts.reverse();
@@ -606,12 +609,12 @@ GW.define('Filesystem', 'object', {
 
 		for (var handle in this.nodes) {
 			var node = this.nodes[handle], children;
-			if (node.parent_handle) {
-				children = this.children[node.parent_handle];
+			if (node.parent) {
+				children = this.children[node.parent];
 				if (children) {
 					children.push(node);
 				} else {
-					this.children[node.parent_handle] = [node];
+					this.children[node.parent] = [node];
 				}
 			}
 
@@ -650,6 +653,16 @@ GW.define('Filesystem', 'object', {
 		}
 
 		return nodes;
+	},
+
+	findChildren: function(node, fn, scope) {
+		return _(this.getChildren(node)).filter(fn, scope);
+	},
+
+	getChildByName: function(node, name) {
+		return _(this.getChildren(node)).find(function(n) {
+			return n.name == name;
+		});
 	},
 
 	getSelfAndChildrenDeep: function(node) {

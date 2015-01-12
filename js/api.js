@@ -268,7 +268,7 @@ GW.define('MegaAPI', 'object', {
 
 	sendBatch: function() {
 		var batch = this.batch;
-		this.batch = null;
+		delete this.batch;
 
 		if (batch && batch.length > 0) {
 			return this.call(_.pluck(batch, 'request')).then(function(responses) {
@@ -289,6 +289,13 @@ GW.define('MegaAPI', 'object', {
 		}
 
 		return Defer.resolved();
+	},
+
+	// }}}
+	// {{{ cancelBatch
+
+	cancelBatch: function() {
+		delete this.batch;
 	},
 
 	// }}}
@@ -648,5 +655,11 @@ GW.define('MegaAPI', 'object', {
 			m: email,
 			t: 10
 		});
+	}
+});
+
+_.extend(MegaAPI, {
+	makeNodeAttrs: function(nk, attrs) {
+		return C.ub64enc(C.aes_enc_cbc(nk, C.alignbuf(Duktape.Buffer('MEGA' + JSON.stringify(attrs)), 16, true)));
 	}
 });

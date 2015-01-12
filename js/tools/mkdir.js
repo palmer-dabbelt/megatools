@@ -76,19 +76,15 @@ GW.define('Tool.MKDIR', 'tool', {
 					}
 
 					var nk = C.aes_key_random();
-					var attrs = C.alignbuf(Duktape.Buffer('MEGA' + JSON.stringify({
-						n: name
-					})), 16, true);
-					var eattrs = C.aes_enc_cbc(nk, attrs);
 
 					session.api.callSingle({
 						a: "p",
 						t: parentNode.handle,
 						n: [{
-							"h": "xxxxxxxx",
-							"t": NodeType.FOLDER,
-							"a": C.ub64enc(eattrs),
-							"k": C.ub64enc(C.aes_enc(session.data.mk, nk))
+							h: "xxxxxxxx",
+							t: NodeType.FOLDER,
+							a: MegaAPI.makeNodeAttrs(nk, {n: name}),
+							k: C.ub64enc(C.aes_enc(session.data.mk, nk))
 						}]
 					}).then(function() {
 						Log.verbose('Created ' + path);
