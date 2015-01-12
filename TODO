@@ -1,77 +1,84 @@
-- 64bit int number type in js
-- zero copy buffer type (with prototype)
+- http
+  - re-usable buffers
+  - progress event
 
-https://github.com/svaarala/duktape/issues/88
+- put
+  - data source for stdin and file
+  - upload
+    - enctypt
+    - update mac
+  - transfer manager
+    - manage up to N http connections
+    - tell overall progress
+    - files queue
+  - put file nodes into folders after upload
 
 ---------------------------- TOOLS -------------------------------
 
-- reg
-  - create epehemeral
-  - create full
-  - verify
+- print errors to stderr
+- global vs. per account config file
+  - travel up to find the config file (like git)
+- setup proxy
+  g_simple_proxy_resolver_set_uri_proxy(G_SIMPLE_PROXY_RESOLVER(proxy_resolver), "https", "https://186.88.35.11:8080");
 
-- info
-  - user info
-  - key info
-  - filesystem info (stats)
+----------------------------- API --------------------------------
 
-- df
-  - free/used space
+- abstract  {a:p} (cp, import, put ...)
+- move more stuff to js_c_class/object
 
-----
+----------------------------- DOCS -------------------------------
 
-- filesystem cache helper
-- file related
-  - ls
-  - get, put sync, ...
-  - rm
-  - mv
-  - cp
-  - mkdir
-  - export
-  - import
-  - share
+- unify documentation
+- directory -> folder
+- improve terminal color output
+  - mark opts with ``
+  - http://misc.flogisoft.com/bash/tip_colors_and_formatting
+- add note about running in parallel
+  - locking?
+- add license headers to the code
 
-.....
+----------------------------- DATA -------------------------------
 
-- new features
+- get
+- sync
+
+- features
   - restart upload/download
+  - streaming upload/streaming download
+  - multi-conn upload/download
   - support big files > 2GB
 
-- megasync
+- sync
   - control conflict resolution
   - delete locally removed files from the cloud
   - show summary/stats after sync
 
-- megashare
-  - create shares on folders (and set permissions)
-  - export dirs
-
-- generate docs/examples/man,...
-
 ---------------------------- HTTP --------------------------------
 
-- incremental:
-	- pass block size config info to http_request
-	- JS callbacks onrecvheaders onrecvbody onsendbody
-	- request body processing
+- mem:
+  - why are not requests freed until the JS terminates?
 
 - pipeline:
-	- algorithm for keep-alive/pipelining
-		- detect closed keep-alive connections and requeue requests
-		- distribute requests to existing workers for pipelining
-
-- mem:
-	- why are not requests freed until the JS terminates?
+  - algorithm for keep-alive/pipelining
+    - detect closed keep-alive connections and requeue requests
+    - distribute requests to existing workers for pipelining
 
 - reverse channel (sc push messages from the server)
-	- online filesystem updates in megafs
+  - online filesystem updates in megafs
 
-- openssl/BIO version instead of GIO/nettle
+- incremental
+  - pass block size config info to http_request
+  - JS callbacks onrecvheaders onrecvbody onsendbody
+  - request body processing
 
 ---------------------------- FUSE --------------------------------
 
+- mod ops
+  - session.fs update without reload, optimized
 - extend (write support,...)
 - http://fuse.sourceforge.net/doxygen/hello__ll_8c.html
 
-------------------------------------------------------------------
+---------------------------- IDEAS -------------------------------
+
+- openssl/BIO version instead of GIO/nettle
+- demo: http://showterm.io/
