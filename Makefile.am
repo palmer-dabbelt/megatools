@@ -1,4 +1,4 @@
-tools = doc register passwd reset info df ls export fs contacts share rm rmdir mkdir cp
+tools = doc register passwd reset info df ls export fs contacts share rm rmdir mkdir cp mv
 tests = crypto api session http timer misc
 
 jsfiles = \
