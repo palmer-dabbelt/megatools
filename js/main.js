@@ -63,7 +63,7 @@ GW.define('Application', 'object', {
                                         usage: usage
 				};
 			});
-		}, this).flatten().values();
+		}, this).flatten().value();
 
 		doc.usage(usages);
 

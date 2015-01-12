@@ -142,7 +142,7 @@ GW.define('Tool.SHARE', 'tool', {
 							}
 
 							return n;
-						}).compact().values();
+						}).compact().value();
 
 						_(nodes).each(function(n) {
 							Log.msg(n);

@@ -63,7 +63,7 @@ GW.define('Tool.EXPORT', 'tool', {
 					}
 
 					return n;
-				}).compact().values();
+				}).compact().value();
 				
 				if (opts.cancel) {
 					_(nodes).each(function(n) {
