@@ -661,5 +661,18 @@ GW.define('MegaAPI', 'object', {
 _.extend(MegaAPI, {
 	makeNodeAttrs: function(nk, attrs) {
 		return C.ub64enc(C.aes_enc_cbc(nk, C.alignbuf(Duktape.Buffer('MEGA' + JSON.stringify(attrs)), 16, true)));
+	},
+
+	decNodeAttrs: function(nk, a) {
+		var eattrs = C.ub64dec(a);
+		var attrs = C.aes_dec_cbc(nk, eattrs);
+		if (attrs && C.slicebuf(attrs, 0, 5) == Duktape.Buffer('MEGA{')) {
+			var json = C.buftojsonstring(C.slicebuf(attrs, 4));
+			if (json) {
+				return JSON.parse(json);
+			}
+		}
+
+		return null;
 	}
 });

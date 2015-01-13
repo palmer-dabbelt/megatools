@@ -324,18 +324,14 @@ GW.define('Filesystem', 'object', {
 
 		// decrypt attrs
 		if (n.key && data.a) {
-			var a = C.ub64dec(data.a);
-			var attrs = C.aes_dec_cbc(n.key, a);
-
-			if (attrs && C.slicebuf(attrs, 0, 5) == Duktape.Buffer('MEGA{')) {
-				attrs = C.slicebuf(attrs, 4);
-				n.attrs = JSON.parse(C.buftojsonstring(attrs));
-				n.name = n.attrs.n;
+			var a = MegaAPI.decNodeAttrs(n.key, data.a);
+			if (a) {
+				n.attrs = a;
+				n.name = a.n;
 			} else {
 				Log.warning('Attribute decryption failed', data);
 				return null;
 			}
-
 
 			if (C.os == 'windows') {
 				if (n.name == '.' || n.name == '..' || n.name.match(/\/\\<>:"\|\?\*/)) {
