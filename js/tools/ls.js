@@ -86,6 +86,10 @@ GW.define('Tool.LS', 'tool', {
 				_.each(nodes, function(n) {
 					var path = n.path + (n.type == NodeType.FILE ? '' : '/');
 
+					if (n.type == NodeType.TOP) {
+						return;
+					}
+
 					if (opts['long']) {
 						print([
 							Utils.pad(n.handle || '', 11), 
