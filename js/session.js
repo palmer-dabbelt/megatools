@@ -371,6 +371,11 @@ GW.define('Filesystem', 'object', {
 				failed: 0
 			};
 
+			this.issues = {
+				unreadableNodes: [],
+				unreadableOutKeys: []
+			};
+
 			this.contacts = [];
 			this.shares = {};
 
@@ -398,6 +403,8 @@ GW.define('Filesystem', 'object', {
 					if (ha == C.joinbuf(h, h)) {
 						this.setShareKey(ok.h, k);
 					} else {
+						this.issues.unreadableOutKeys.push(ok);
+
 						Log.warning('Share key can\'t be authenticated ', ok);
 					}
 				}
@@ -418,6 +425,7 @@ GW.define('Filesystem', 'object', {
 						this.stats.dirs += node.type == 1 ? 1 : 0;
 					} else {
 						this.stats.failed += 1;
+						this.issues.unreadableNodes.push(r.f[i]);
 					}
 				}
 			}
@@ -717,6 +725,10 @@ GW.define('Filesystem', 'object', {
 
 	getRubbish: function() {
 		return this.getNodeByPath('/Rubbish');
+	},
+
+	getIssues: function() {
+		return this.issues;
 	}
 });
 
