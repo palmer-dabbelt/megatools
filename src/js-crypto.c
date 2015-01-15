@@ -138,6 +138,24 @@ static int js_aes_ctr(duk_context *ctx)
 	return 1;
 }
 
+static int js_aes_cbc_mac(duk_context* ctx)
+{
+	duk_size_t key_len, nonce_len, data_len;
+	guchar* key = duk_require_buffer(ctx, 0, &key_len);
+	guchar* nonce = duk_require_buffer(ctx, 1, &nonce_len);
+	guchar* data = duk_require_buffer(ctx, 2, &data_len);
+
+        if (key_len != 16)
+		duk_error(ctx, DUK_ERR_API_ERROR, "Key size must be 16");
+        if (nonce_len != 16)
+		duk_error(ctx, DUK_ERR_API_ERROR, "Nonce size must be 16");
+
+        guchar* mac = duk_push_fixed_buffer(ctx, 16);
+
+	crypto_aes_cbc_mac(key, nonce, data, data_len, mac);
+	return 1;
+}
+
 static int js_aes_key_from_password(duk_context *ctx)
 {
 	const gchar* str = duk_require_string(ctx, 0);
@@ -262,6 +280,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "aes_ctr", js_aes_ctr, 4 },
 	{ "aes_key_from_password", js_aes_key_from_password, 1 },
 	{ "aes_key_random", js_aes_key_random, 0 },
+	{ "aes_cbc_mac", js_aes_cbc_mac, 3 },
 	{ "make_username_hash", js_make_username_hash, 2 },
 	{ "make_request_id", js_make_request_id, 0 },
 	{ "rsa_encrypt", js_rsa_encrypt, 2 },

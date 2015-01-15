@@ -238,6 +238,32 @@ void crypto_aes_enc_ctr(const guchar* key, guchar* nonce, guint64 position, cons
 	ctr_crypt(&ctx, (nettle_crypt_func*)aes_encrypt, AES_BLOCK_SIZE, ctr.iv, len, to, from);
 }
 
+void crypto_aes_cbc_mac(const guchar* key, const guchar* nonce, const guchar* data, gsize len, guchar* mac)
+{
+	struct aes_ctx ctx;
+	gsize i, j, rem;
+
+	aes_set_encrypt_key(&ctx, 16, key);
+	memcpy(mac, nonce, 16);
+
+	for (i = 0; i < len / 16; i++) {
+		for (j = 0; j < 16; j++) {
+			mac[j] ^= data[i * 16 + j];
+		}
+
+		aes_encrypt(&ctx, 16, mac, mac);
+	}
+
+	rem = len % 16;
+	if (rem) {
+		for (j = 0; j < rem; j++) {
+			mac[j] ^= data[i * 16 + j];
+		}
+
+		aes_encrypt(&ctx, 16, mac, mac);
+	}
+}
+
 // }}}
 // {{{ rsa
 

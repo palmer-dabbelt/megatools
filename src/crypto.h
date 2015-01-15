@@ -16,6 +16,7 @@ void crypto_aes_dec(const guchar* key, const guchar* cipher, guchar* plain, gsiz
 void crypto_aes_enc_cbc(const guchar* key, const guchar* plain, guchar* cipher, gsize len);
 void crypto_aes_dec_cbc(const guchar* key, const guchar* cipher, guchar* plain, gsize len);
 void crypto_aes_enc_ctr(const guchar* key, guchar* nonce, guint64 position, const guchar* from, guchar* to, gsize len);
+void crypto_aes_cbc_mac(const guchar* key, const guchar* nonce, const guchar* data, gsize len, guchar* mac);
 
 gboolean crypto_rsa_key_generate(const guchar* privk_enc_key, gchar** privk, gchar** pubk);
 GBytes* crypto_rsa_encrypt(const gchar* pubk, const guchar* plain, gsize len);
