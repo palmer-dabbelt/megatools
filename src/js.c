@@ -187,6 +187,17 @@ guint64 js_get_object_uint64(duk_context* ctx, duk_idx_t index, const gchar* nam
 	return v;
 }
 
+gboolean js_get_object_boolean(duk_context* ctx, duk_idx_t index, const gchar* name)
+{
+	gboolean v;
+
+	duk_get_prop_string(ctx, index, name);
+	v = duk_to_boolean(ctx, -1);
+
+	duk_pop(ctx);
+
+	return v;
+}
 guint64 js_require_uint64(duk_context* ctx, duk_idx_t idx)
 {
 	if (duk_is_number(ctx, idx))
