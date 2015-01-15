@@ -4,7 +4,7 @@ GW.define('Tool.RM', 'tool', {
 	description: 'Remove remote files and directories',
 	allowArgs: true,
 	usages: [
-		'[-r|--recursive] [-d|--dir] [-R|--rubbish] [<remotepaths>...]'
+		'[-r|--recursive] [-d|--dir] [-R|--rubbish] <remotepaths>...'
 	],
 
 	examples: [{
