@@ -696,8 +696,13 @@ void js_misc_init(duk_context* ctx)
 
 #if defined(G_OS_WIN32) || !defined(HAVE_NCURSES)
 	duk_push_boolean(ctx, 0);
+	duk_put_prop_string(ctx, -2, "allow_color");
+	duk_push_uint(ctx, 80);
+	duk_put_prop_string(ctx, -2, "term_cols");
 #else
 	duk_push_boolean(ctx, tigetnum("colors") > 2 && isatty(1));
-#endif
 	duk_put_prop_string(ctx, -2, "allow_color");
+	duk_push_uint(ctx, tigetnum("cols"));
+	duk_put_prop_string(ctx, -2, "term_cols");
+#endif
 }

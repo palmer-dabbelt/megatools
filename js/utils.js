@@ -8,35 +8,6 @@ Utils = {
 		return out.join('');
 	},
 
-	breakLine: function(ln, off) {
-		var LINE_LEN = 72;
-		var words = ln.split(' '), i;
-		var out = [];
-		var curLen = 0, nextLen;
-		var space = Utils.getSpace(LINE_LEN);
-
-		off = off || 0;
-
-		for (i = 0; i < words.length; i++) {
-			curLen += 1 + words[i].length;
-
-			if (curLen > LINE_LEN) {
-				out.push('\n' + space.substr(0, off));
-				curLen = off + 1 + words[i].length;
-
-				out.push(words[i]);
-			} else {
-				if (i != 0) {
-					out.push(' ');
-				}
-
-				out.push(words[i]);
-			}
-		}
-
-		return out.join('');
-	},
-
 	humanSize: function(size) {
 		function fixed(v) {
 			return v.toFixed(1);

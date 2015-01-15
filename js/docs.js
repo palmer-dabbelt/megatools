@@ -159,6 +159,8 @@ GW.define('Document.Renderer', 'object', {
 });
 
 GW.define('Document.Renderer.Text', 'document.renderer', {
+	lineLength: 80,
+
 	initObject: function() {
 		this.space = Utils.getSpace(200);
 	},
@@ -167,8 +169,36 @@ GW.define('Document.Renderer.Text', 'document.renderer', {
 		return '.txt';
 	},
 
+	breakLine: function(ln, off) {
+		var words = ln.split(' '), i;
+		var out = [];
+		var curLen = 0, nextLen;
+		var space = Utils.getSpace(this.lineLength);
+
+		off = off || 0;
+
+		for (i = 0; i < words.length; i++) {
+			curLen += 1 + words[i].length;
+
+			if (curLen > this.lineLength) {
+				out.push('\n' + space.substr(0, off));
+				curLen = off + 1 + words[i].length;
+
+				out.push(words[i]);
+			} else {
+				if (i != 0) {
+					out.push(' ');
+				}
+
+				out.push(words[i]);
+			}
+		}
+
+		return out.join('');
+	},
+
 	renderLine: function(ln, off) {
-		this.out.push(Utils.breakLine(ln, off), '\n');
+		this.out.push(this.breakLine(ln, off), '\n');
 	},
 
 	renderEmptyLine: function() {
@@ -307,6 +337,9 @@ GW.define('Document.Renderer.Text', 'document.renderer', {
 
 GW.define('Document.Renderer.Screen', 'document.renderer.text', {
 	render: function() {
+		// automatic line length
+		this.lineLength = Math.min(C.term_cols, 110);
+
 		var out = Document.Renderer.Screen.parent.render.apply(this, arguments);
 
 		out = out
