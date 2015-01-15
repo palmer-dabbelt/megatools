@@ -148,7 +148,7 @@ gboolean js_get_object_function(duk_context* ctx, duk_idx_t index, const gchar* 
 
 guint js_get_object_uint(duk_context* ctx, duk_idx_t index, const gchar* name)
 {
-	guint v = 0;
+	guint v;
 
 	duk_get_prop_string(ctx, index, name);
 	v = duk_to_uint(ctx, -1);
