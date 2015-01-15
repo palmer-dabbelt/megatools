@@ -33,16 +33,13 @@ static void event_callback(HttpRequest* request, HttpRequestEvent* event, JsRef*
 			duk_push_string(ctx, event->error_message);
 			nargs = 2;
 		} else if (event->type == HTTP_REQUEST_EVENT_COMPLETE) {
-			// push response body if request is not set to ondemand
-			if (!http_request_is_ondemand(request)) {
-				gsize body_size = 0;
-				const guchar* body = http_request_get_response_body(request, &body_size);
+			gsize body_size = 0;
+			const guchar* body = http_request_get_response_body(request, &body_size);
 
-				if (body) {
-					guchar* buf = duk_push_fixed_buffer(ctx, body_size);
-					memcpy(buf, body, body_size);
-					nargs = 1;
-				}
+			if (body) {
+				guchar* buf = duk_push_fixed_buffer(ctx, body_size);
+				memcpy(buf, body, body_size);
+				nargs = 1;
 			}
 
 			js_ref_drop(ref);

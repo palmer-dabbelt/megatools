@@ -121,8 +121,6 @@ struct _HttpRequest {
 	gchar* resource;
 	gchar* method;
 
-	gboolean ondemand;
-
 	GHashTable* request_headers;
 	guchar* request_body;
         gsize request_body_size;
@@ -220,16 +218,6 @@ const guchar* http_request_get_response_body(HttpRequest* request, gsize* len)
 		*len = request->response_body_size;
 
 	return request->response_body;
-}
-
-// }}}
-// {{{ http_request_is_ondemand
-
-gboolean http_request_is_ondemand(HttpRequest* request)
-{
-	g_return_val_if_fail(request != NULL, FALSE);
-	
-	return request->ondemand;
 }
 
 // }}}
@@ -604,10 +592,8 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 	http_request_set_header(request, "Connection", "close");
 	//http_request_set_header(request, "Connection", "keep-alive");
 
-        if (!request->ondemand) {
-		gc_free gchar* len = g_strdup_printf("%" G_GSIZE_FORMAT, request->request_body_size);
-		http_request_set_header(request, "Content-Length", len);
-	}
+	gc_free gchar* len = g_strdup_printf("%" G_GSIZE_FORMAT, request->request_body_size);
+	http_request_set_header(request, "Content-Length", len);
 
 	GHashTableIter iter;
 	gchar *header_name, *header_value;
@@ -630,22 +616,17 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 
 	// send data if any
 
-        if (!request->ondemand) {
-		D(D_HTTP_PROGRESS, "-> sending body\n");
+	D(D_HTTP_PROGRESS, "-> sending body\n");
 
-		if (request->request_body)
-			D(D_HTTP_BODY, "-> %s\n", request->request_body);
+	if (request->request_body)
+		D(D_HTTP_BODY, "-> %s\n", request->request_body);
 
-		if (request->request_body && !g_output_stream_write_all(connection->out, request->request_body, request->request_body_size, NULL, NULL, &local_err)) {
-			emit_error_propagate(request, local_err, "send_fail", "Can't send request body: ");
-			return FALSE;
-		}
-
-		D(D_HTTP_PROGRESS, "-> body sent\n");
-	} else {
-		emit_error(request, "not_implemented", "Ondemand HTTP requests not implemented yet");
+	if (request->request_body && !g_output_stream_write_all(connection->out, request->request_body, request->request_body_size, NULL, NULL, &local_err)) {
+		emit_error_propagate(request, local_err, "send_fail", "Can't send request body: ");
 		return FALSE;
 	}
+
+	D(D_HTTP_PROGRESS, "-> body sent\n");
 
 	D(D_HTTP_PROGRESS, "<- waiting for headers\n");
 
@@ -721,41 +702,36 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 
 	D(D_HTTP_PROGRESS, "<- waiting for body\n");
 
-	if (!request->ondemand) {
-		if (response_length == 0) {
-			D(D_HTTP_BODY, "<- [empty]\n");
-			emit_complete(request);
-			return FALSE;
-		}
-
-		if (response_length > 256 * 1024 * 1024) {
-			gc_free gchar* size_str = g_format_size_full(response_length, G_FORMAT_SIZE_LONG_FORMAT);
-			emit_error(request, "too_big", "Response is too big: %s", size_str);
-			return FALSE;
-		}
-
-		gc_free gchar* buf = g_malloc(response_length + 1);
-		buf[response_length] = '\0';
-		gsize actual_response_length = 0;
-
-		if (!g_input_stream_read_all(connection->in, buf, response_length, &actual_response_length, NULL, &local_err)) {
-			emit_error_propagate(request, local_err, "no_response", "Can't receive response body: ");
-			return FALSE;
-		}
-
-		if (response_length != actual_response_length) {
-			emit_error(request, "short_response", "Expecting %u, got %u bytes", response_length, actual_response_length);
-			return FALSE;
-		}
-
-		request->response_body = buf; buf = NULL;
-		request->response_body_size = response_length;
-
-		D(D_HTTP_BODY, "<- %s\n", request->response_body);
-	} else {
-		emit_error(request, "not_implemented", "Ondemand HTTP requests not implemented yet");
+	if (response_length == 0) {
+		D(D_HTTP_BODY, "<- [empty]\n");
+		emit_complete(request);
 		return FALSE;
 	}
+
+	if (response_length > 256 * 1024 * 1024) {
+		gc_free gchar* size_str = g_format_size_full(response_length, G_FORMAT_SIZE_LONG_FORMAT);
+		emit_error(request, "too_big", "Response is too big: %s", size_str);
+		return FALSE;
+	}
+
+	gc_free gchar* buf = g_malloc(response_length + 1);
+	buf[response_length] = '\0';
+	gsize actual_response_length = 0;
+
+	if (!g_input_stream_read_all(connection->in, buf, response_length, &actual_response_length, NULL, &local_err)) {
+		emit_error_propagate(request, local_err, "no_response", "Can't receive response body: ");
+		return FALSE;
+	}
+
+	if (response_length != actual_response_length) {
+		emit_error(request, "short_response", "Expecting %u, got %u bytes", response_length, actual_response_length);
+		return FALSE;
+	}
+
+	request->response_body = buf; buf = NULL;
+	request->response_body_size = response_length;
+
+	D(D_HTTP_BODY, "<- %s\n", request->response_body);
 
 	emit_complete(request);
 
