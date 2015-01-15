@@ -237,10 +237,7 @@ GW.define('MegaAPI', 'object', {
 
 	callSingle: function(request) {
 		if (this.batch) {
-			var defer = Defer.defer();
-			defer.request = request;
-			this.batch.push(defer);
-			return defer;
+			return this.batch.call(request);
 		}
 
 		return Defer.defer(function(defer) {
@@ -257,10 +254,19 @@ GW.define('MegaAPI', 'object', {
 	},
 
 	// }}}
+	// {{{ createBatch
+
+	createBatch: function() {
+		return new MegaAPI.CallBatch({
+			api: this
+		});
+	},
+
+	// }}}
 	// {{{ startBatch
 
 	startBatch: function() {
-		this.batch = [];
+		this.batch = this.createBatch();
 	},
 
 	// }}}
@@ -270,22 +276,8 @@ GW.define('MegaAPI', 'object', {
 		var batch = this.batch;
 		delete this.batch;
 
-		if (batch && batch.length > 0) {
-			return this.call(_.pluck(batch, 'request')).then(function(responses) {
-				_.each(responses, function(response, idx) {
-					var defer = batch[idx];
-
-					if (_.isNumber(response) && response < 0) {
-						var code = this.getErrorName(response);
-
-						defer.reject(code, this.getErrorMessage(code));
-					} else {
-						defer.resolve(response);
-					}
-				}, this);
-			}, function(code, msg) {
-				_.invoke(batch, 'reject', code, msg);
-			}, this);
+		if (batch) {
+			return batch.send();
 		}
 
 		return Defer.resolved();
@@ -674,5 +666,50 @@ _.extend(MegaAPI, {
 		}
 
 		return null;
+	}
+});
+
+GW.define('MegaAPI.CallBatch', 'object', {
+	api: null,
+
+	initObject: function() {
+		this.calls = [];
+	},
+
+	call: function(request) {
+		var defer = Defer.defer();
+
+		defer.request = request;
+		this.calls.push(defer);
+
+		return defer;
+	},
+
+	send: function() {
+		var calls = this.calls;
+
+		if (calls.length > 0) {
+			return this.api.call(_.pluck(calls, 'request')).then(function(responses) {
+				_.each(responses, function(response, idx) {
+					var defer = calls[idx];
+
+					if (_.isNumber(response) && response < 0) {
+						var code = this.getErrorName(response);
+
+						defer.reject(code, this.getErrorMessage(code));
+					} else {
+						defer.resolve(response);
+					}
+				}, this);
+			}, function(code, msg) {
+				_.invoke(calls, 'reject', code, msg);
+			}, this);
+		}
+
+		return Defer.resolved();
+	},
+
+	isEmpty: function() {
+		return this.calls.length == 0;
 	}
 });
