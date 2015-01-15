@@ -29,6 +29,8 @@
   re2c:indent:top      = 1;
 */
 
+// {{{ js_joinbuf
+
 static int js_joinbuf(duk_context* ctx)
 {
 	duk_idx_t i, nargs = duk_get_top(ctx);
@@ -51,6 +53,9 @@ static int js_joinbuf(duk_context* ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_slicebuf
+
 static int js_slicebuf(duk_context* ctx)
 {
 	duk_size_t size;
@@ -69,6 +74,9 @@ static int js_slicebuf(duk_context* ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_zerobuf
+
 static int js_zerobuf(duk_context* ctx)
 {
 	duk_uint_t len = duk_get_uint(ctx, 0);
@@ -76,6 +84,28 @@ static int js_zerobuf(duk_context* ctx)
 	memset(buf, '\0', len);
 	return 1;
 }
+
+// }}}
+// {{{ js_xorbufs
+
+static int js_xorbufs(duk_context* ctx)
+{
+	duk_size_t a_len, b_len, i;
+	guchar *a = duk_require_buffer(ctx, 0, &a_len);
+	guchar *b = duk_require_buffer(ctx, 1, &b_len);
+
+        if (a_len != b_len)
+		duk_error(ctx, DUK_ERR_API_ERROR, "Buffers must be of the same size");
+
+	guchar* o = duk_push_fixed_buffer(ctx, a_len);
+	for (i = 0; i < a_len; i++)
+		o[i] = a[i] ^ b[i];
+
+	return 1;
+}
+
+// }}}
+// {{{ js_alignbuf
 
 static int js_alignbuf(duk_context* ctx)
 {
@@ -97,6 +127,9 @@ static int js_alignbuf(duk_context* ctx)
 	memset(out + size, '\0', zeropad + pad);
 	return 1;
 }
+
+// }}}
+// {{{ js_timeout
 
 static gboolean js_timeout_callback(JsRef* ref)
 {
@@ -130,6 +163,9 @@ static int js_timeout(duk_context* ctx)
 
 	return 1;
 }
+
+// }}}
+// {{{ tool_convert_filename (unused)
 
 static gchar* tool_convert_filename(const gchar* path, gboolean local)
 {
@@ -194,6 +230,9 @@ static gchar* prompt(const gchar* message, gboolean no_echo)
 
 	return input;
 }
+
+// }}}
+// {{{ js_prompt
 
 typedef struct {
 	JsRef* ref;
@@ -263,6 +302,85 @@ static int js_prompt(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_file_exists
+
+static int js_file_exists(duk_context *ctx)
+{
+	const gchar* path = duk_require_string(ctx, 0);
+
+	gboolean exists = g_file_test(path, G_FILE_TEST_IS_REGULAR);
+	duk_push_boolean(ctx, exists);
+	return 1;
+}
+
+// }}}
+// {{{ js_dir_exists
+
+static int js_dir_exists(duk_context *ctx)
+{
+	const gchar* path = duk_require_string(ctx, 0);
+
+	gboolean exists = g_file_test(path, G_FILE_TEST_IS_DIR);
+	duk_push_boolean(ctx, exists);
+	return 1;
+}
+
+// }}}
+// {{{ js_dir_read
+
+static int js_dir_read(duk_context *ctx)
+{
+	const gchar* path = duk_require_string(ctx, 0);
+
+	gc_object_unref GFile* dir = g_file_new_for_path(path);
+	if (g_file_query_file_type(dir, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) != G_FILE_TYPE_DIRECTORY)
+		return 0;
+
+	gc_object_unref GFileEnumerator* e = g_file_enumerate_children(dir, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
+	if (!e)
+		return 0;
+	//g_printerr("ERROR: Can't read local directory %s: %s\n", g_file_get_relative_path(root, file), local_err->message);
+
+	duk_idx_t idx = 0;
+	duk_push_array(ctx);
+	while (TRUE) {
+		gc_object_unref GFileInfo* i = g_file_enumerator_next_file(e, NULL, NULL);
+		if (!i) {
+			break;
+		}
+
+		GFileType type = g_file_info_get_file_type(i);
+
+		if (type != G_FILE_TYPE_DIRECTORY && type != G_FILE_TYPE_REGULAR) {
+			continue;
+		}
+
+		const gchar* name = g_file_info_get_name(i);
+
+		duk_push_object(ctx);
+
+		duk_push_string(ctx, name);
+		duk_put_prop_string(ctx, -2, "name");
+		
+		duk_push_string(ctx, type == G_FILE_TYPE_REGULAR ? "file" : "dir");
+		duk_put_prop_string(ctx, -2, "type");
+		
+		if (type == G_FILE_TYPE_REGULAR) {
+			js_push_uint64(ctx, g_file_info_get_size(i));
+			duk_put_prop_string(ctx, -2, "size");
+		}
+
+		duk_put_prop_index(ctx, -2, idx);
+		idx++;
+	}
+
+	return 1;
+}
+
+// }}}
+// {{{ js_file_read
+
 static int js_file_read(duk_context *ctx)
 {
 	const gchar* path = duk_require_string(ctx, 0);
@@ -278,6 +396,9 @@ static int js_file_read(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_file_write
+
 static int js_file_write(duk_context *ctx)
 {
 	const gchar* path = duk_require_string(ctx, 0);
@@ -288,23 +409,8 @@ static int js_file_write(duk_context *ctx)
 	return 1;
 }
 
-static int js_file_exists(duk_context *ctx)
-{
-	const gchar* path = duk_require_string(ctx, 0);
-
-	gboolean exists = g_file_test(path, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK);
-	duk_push_boolean(ctx, exists);
-	return 1;
-}
-
-static int js_dir_exists(duk_context *ctx)
-{
-	const gchar* path = duk_require_string(ctx, 0);
-
-	gboolean exists = g_file_test(path, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR);
-	duk_push_boolean(ctx, exists);
-	return 1;
-}
+// }}}
+// {{{ js_file_remove
 
 static int js_file_remove(duk_context *ctx)
 {
@@ -314,6 +420,25 @@ static int js_file_remove(duk_context *ctx)
 	duk_push_boolean(ctx, rs == 0);
 	return 1;
 }
+
+// }}}
+// {{{ js_file_size
+
+static int js_file_size(duk_context *ctx)
+{
+	const gchar* path = duk_require_string(ctx, 0);
+	struct stat st;
+
+	if (stat(path, &st) == -1) {
+		return 0;
+	}
+
+	js_push_uint64(ctx, st.st_size);
+	return 1;
+}
+
+// }}}
+// {{{ js_sha256_digest
 
 static int js_sha256_digest(duk_context *ctx)
 {
@@ -328,11 +453,17 @@ static int js_sha256_digest(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_get_tmp_dir
+
 static int js_get_tmp_dir(duk_context *ctx)
 {
 	duk_push_string(ctx, g_get_tmp_dir());
 	return 1;
 }
+
+// }}}
+// {{{ js_get_current_dir
 
 static int js_get_current_dir(duk_context *ctx)
 {
@@ -340,11 +471,17 @@ static int js_get_current_dir(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_get_home_dir
+
 static int js_get_home_dir(duk_context *ctx)
 {
 	duk_push_string(ctx, g_get_home_dir());
 	return 1;
 }
+
+// }}}
+// {{{ js_get_config_dir
 
 static int js_get_config_dir(duk_context *ctx)
 {
@@ -352,7 +489,44 @@ static int js_get_config_dir(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_file_node_key_pack
+
 #define DW(p, n) (*((guint32*)(p) + (n)))
+
+static void pack_node_key(guchar node_key[32], const guchar aes_key[16], const guchar nonce[8], const guchar meta_mac[16])
+{
+	DW(node_key, 0) = DW(aes_key, 0) ^ DW(nonce, 0);
+	DW(node_key, 1) = DW(aes_key, 1) ^ DW(nonce, 1);
+	DW(node_key, 2) = DW(aes_key, 2) ^ DW(meta_mac, 0) ^ DW(meta_mac, 1);
+	DW(node_key, 3) = DW(aes_key, 3) ^ DW(meta_mac, 2) ^ DW(meta_mac, 3);
+	DW(node_key, 4) = DW(nonce, 0);
+	DW(node_key, 5) = DW(nonce, 1);
+	DW(node_key, 6) = DW(meta_mac, 0) ^ DW(meta_mac, 1);
+	DW(node_key, 7) = DW(meta_mac, 2) ^ DW(meta_mac, 3);
+}
+
+static int js_file_node_key_pack(duk_context *ctx)
+{
+	duk_size_t aes_key_len, nonce_len, meta_mac_len;
+	const guchar* aes_key = duk_require_buffer(ctx, 0, &aes_key_len);
+	const guchar* nonce = duk_require_buffer(ctx, 1, &nonce_len);
+	const guchar* meta_mac = duk_require_buffer(ctx, 2, &meta_mac_len);
+
+        if (aes_key_len != 16)
+		duk_error(ctx, DUK_ERR_API_ERROR, "AES key size must be 16");
+        if (nonce_len != 8)
+		duk_error(ctx, DUK_ERR_API_ERROR, "Nonce size must be 8");
+        if (meta_mac_len != 16)
+		duk_error(ctx, DUK_ERR_API_ERROR, "Meta mac size must be 16");
+
+	guchar* packed_key = duk_push_fixed_buffer(ctx, 32);
+	pack_node_key(packed_key, aes_key, nonce, meta_mac);
+	return 1;
+}
+
+// }}}
+// {{{ js_file_node_key_unpack
 
 static void unpack_node_key(const guchar node_key[32], guchar aes_key[16], guchar nonce[8], guchar meta_mac_xor[8])
 {
@@ -374,30 +548,28 @@ static void unpack_node_key(const guchar node_key[32], guchar aes_key[16], gucha
 	}
 }
 
-static void pack_node_key(guchar node_key[32], guchar aes_key[16], guchar nonce[8], guchar meta_mac[16])
-{
-	DW(node_key, 0) = DW(aes_key, 0) ^ DW(nonce, 0);
-	DW(node_key, 1) = DW(aes_key, 1) ^ DW(nonce, 1);
-	DW(node_key, 2) = DW(aes_key, 2) ^ DW(meta_mac, 0) ^ DW(meta_mac, 1);
-	DW(node_key, 3) = DW(aes_key, 3) ^ DW(meta_mac, 2) ^ DW(meta_mac, 3);
-	DW(node_key, 4) = DW(nonce, 0);
-	DW(node_key, 5) = DW(nonce, 1);
-	DW(node_key, 6) = DW(meta_mac, 0) ^ DW(meta_mac, 1);
-	DW(node_key, 7) = DW(meta_mac, 2) ^ DW(meta_mac, 3);
-}
-
 static int js_file_node_key_unpack(duk_context *ctx)
 {
 	duk_size_t len;
-	const guchar* buf = duk_require_buffer(ctx, 0, &len);
+	const guchar* packed_key = duk_require_buffer(ctx, 0, &len);
 
         if (len != 32)
-		duk_error(ctx, DUK_ERR_API_ERROR, "Node key size must be 32");
+		duk_error(ctx, DUK_ERR_API_ERROR, "Packed node key size must be 32");
 
-	guchar* key = duk_push_fixed_buffer(ctx, 16);
-	unpack_node_key(buf, key, NULL, NULL);
+	duk_push_object(ctx);
+	guchar* aes_key = duk_push_fixed_buffer(ctx, 16);
+	duk_put_prop_string(ctx, -2, "aes_key");
+	guchar* nonce = duk_push_fixed_buffer(ctx, 8);
+	duk_put_prop_string(ctx, -2, "nonce");
+	guchar* meta_mac_xor = duk_push_fixed_buffer(ctx, 8);
+	duk_put_prop_string(ctx, -2, "meta_mac_xor");
+
+	unpack_node_key(packed_key, aes_key, nonce, meta_mac_xor);
 	return 1;
 }
+
+// }}}
+// {{{ js_buftojsonstring
 
 static int js_buftojsonstring(duk_context *ctx)
 {
@@ -414,6 +586,9 @@ static int js_buftojsonstring(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_date
+
 static int js_date(duk_context *ctx)
 {
 	const guchar* fmt = duk_require_string(ctx, 0);
@@ -426,6 +601,9 @@ static int js_date(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_shell_quote
+
 static int js_shell_quote(duk_context *ctx)
 {
 	const guchar* str = duk_require_string(ctx, 0);
@@ -435,6 +613,9 @@ static int js_shell_quote(duk_context *ctx)
 	duk_push_string(ctx, tmp);
 	return 1;
 }
+
+// }}}
+// {{{ js_handle_to_inode
 
 static int js_handle_to_inode(duk_context *ctx)
 {
@@ -455,6 +636,9 @@ static int js_handle_to_inode(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_inode_to_handle
+
 static int js_inode_to_handle(duk_context *ctx)
 {
 	guint64 ino = js_require_uint64(ctx, 0);
@@ -468,6 +652,9 @@ static int js_inode_to_handle(duk_context *ctx)
 	duk_push_string(ctx, handle);
 	return 1;
 }
+
+// }}}
+// {{{ path_simplify
 
 #define MAX_PARTS 100
 
@@ -577,6 +764,9 @@ static gchar* path_simplify(const gchar* path, gboolean level_up, gboolean last_
 	return g_string_free(str, FALSE);
 }
 
+// }}}
+// {{{ js_path_clean
+
 static int js_path_clean(duk_context *ctx)
 {
 	const guchar* str = duk_require_string(ctx, 0);
@@ -587,6 +777,9 @@ static int js_path_clean(duk_context *ctx)
 		duk_push_undefined(ctx);
 	return 1;
 }
+
+// }}}
+// {{{ js_path_up
 
 static int js_path_up(duk_context *ctx)
 {
@@ -599,6 +792,9 @@ static int js_path_up(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+// {{{ js_path_name
+
 static int js_path_name(duk_context *ctx)
 {
 	const guchar* str = duk_require_string(ctx, 0);
@@ -609,6 +805,9 @@ static int js_path_name(duk_context *ctx)
 		duk_push_undefined(ctx);
 	return 1;
 }
+
+// }}}
+// {{{ js_email_valid
 
 static gboolean is_email_valid(const gchar* email)
 {
@@ -655,12 +854,15 @@ static int js_email_valid(duk_context *ctx)
 	return 1;
 }
 
+// }}}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "timeout", js_timeout, 2 },
 	{ "joinbuf", js_joinbuf, DUK_VARARGS },
 	{ "slicebuf", js_slicebuf, 3 },
 	{ "zerobuf", js_zerobuf, 1 },
+	{ "xorbufs", js_xorbufs, 2 },
 	{ "alignbuf", js_alignbuf, 3 },
 	{ "prompt", js_prompt, 3 },
 	{ "date", js_date, 2 },
@@ -668,13 +870,16 @@ static const duk_function_list_entry module_funcs[] =
 	{ "file_write", js_file_write, 2 },
 	{ "file_exists", js_file_exists, 1 },
 	{ "file_remove", js_file_remove, 1 },
+	{ "file_size", js_file_size, 1 },
 	{ "dir_exists", js_dir_exists, 1 },
+	{ "dir_read", js_dir_read, 1 },
 	{ "sha256_digest", js_sha256_digest, 1 },
 	{ "get_tmp_dir", js_get_tmp_dir, 0 },
 	{ "get_current_dir", js_get_current_dir, 0 },
 	{ "get_home_dir", js_get_home_dir, 0 },
 	{ "get_config_dir", js_get_config_dir, 0 },
 	{ "file_node_key_unpack", js_file_node_key_unpack, 1 },
+	{ "file_node_key_pack", js_file_node_key_pack, 3 },
 	{ "buftojsonstring", js_buftojsonstring, 1 },
 	{ "shell_quote", js_shell_quote, 1 },
 	{ "handle_to_inode", js_handle_to_inode, 1 },

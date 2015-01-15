@@ -58,7 +58,7 @@ GW.define('Tool.IMPORT', 'tool', {
 				data.type = NodeType.FILE;
 				data.handle = m[1];
 				data.key_full = C.ub64dec(m[2]);
-				data.key = C.file_node_key_unpack(data.key_full);
+				data.key = C.file_node_key_unpack(data.key_full).aes_key;
 				fileLinks.push(data);
 				return;
 			}

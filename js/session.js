@@ -308,7 +308,7 @@ GW.define('Filesystem', 'object', {
 				if (decKey) {
 					if (n.type == NodeType.FILE) { 
 						n.key_full = C.aes_dec(decKey, keyData);
-						n.key = C.file_node_key_unpack(n.key_full);
+						n.key = C.file_node_key_unpack(n.key_full).aes_key;
 					} else {
 						n.key = C.aes_dec(decKey, keyData);
 						n.key_full = n.key;
