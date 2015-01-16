@@ -24,58 +24,42 @@ GW.define('Tool.RMDIR', 'tool', {
 		}].concat(this.loginOpts);
 	},
 
-	run: function(defer) {
+	run: function() {
 		var opts = this.opts;
+		var args = this.args;
 
-		if (this.args.length == 0) {
-			Log.error("You must specify <remotepaths> to remove.");
-			defer.reject(10);
-			return;
+		if (args.length == 0) {
+			return Defer.rejected('args', "You must specify <remotepaths> to remove.");
 		}
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
+		return this.getSession().done(function(session) {
+			var fs = session.getFilesystem();
+			var nodes = fs.getNodesForPathsRemoveAncestors(args);
+			var batch = session.api.createBatch();
 
-			function(session) {
-				var fs = session.getFilesystem();
-				var nodes = fs.getNodesForPathsRemoveAncestors(this.args);
+			_.each(nodes, function(n) {
+				var path = n.path + (n.type == NodeType.FILE ? '' : '/');
+				var op;
 
-				session.api.startBatch();
-
-				_.each(nodes, function(n) {
-					var path = n.path + (n.type == NodeType.FILE ? '' : '/');
-					var op;
-
-					if (n.type == NodeType.FOLDER) {
-						if (fs.getChildren(n).length != 0) {
-							Log.error("Can't remove non-empty folder " + path + ": use rm -r");
-							return;
-						}
-					} else if (n.type == NodeType.FILE) {
-						Log.error("Can't remove " + path + ": not a folder");
-					} else {
-						Log.error("Can't remove " + path + ": special folders can't be removed");
+				if (n.type == NodeType.FOLDER) {
+					if (fs.getChildren(n).length != 0) {
+						Log.error("Can't remove non-empty folder " + path + ": use rm -r");
+						return;
 					}
+				} else if (n.type == NodeType.FILE) {
+					Log.error("Can't remove " + path + ": not a folder");
+				} else {
+					Log.error("Can't remove " + path + ": special folders can't be removed");
+				}
 
-					session.api.callSingle({
-						a: "d",
-						n: n.handle
-					}).then(function() {
-						Log.verbose('Removed ' + path);
-					}, function(code, message) {
-						Log.error("Can't remove " + path + ": " + message);
-					});
+				batch.deleteNode(n.handle).then(function() {
+					Log.verbose('Removed ' + path);
+				}, function(code, message) {
+					Log.error("Can't remove " + path + ": " + message);
 				});
+			});
 
-				return session.api.sendBatch();
-			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
-		}, this);
+			return batch.send();
+		});
 	}
 });

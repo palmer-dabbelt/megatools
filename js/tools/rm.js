@@ -48,108 +48,91 @@ GW.define('Tool.RM', 'tool', {
 
 	run: function(defer) {
 		var opts = this.opts;
+		var args = this.args;
 
-		if (this.args.length == 0) {
-			Log.error("You must specify <remotepaths> to remove.");
-			defer.reject(10);
-			return;
+		if (args.length == 0) {
+			return Defer.rejected('args', "You must specify <remotepaths> to remove.");
 		}
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
+		return this.getSession().then(function(session) {
+			var fs = session.getFilesystem();
+			var nodes;
 
-			function(session) {
-				var fs = session.getFilesystem();
-				var nodes;
+			if (opts.recursive) {
+				nodes = fs.getNodesForPathsRemoveChildren(args);
+			} else {
+				nodes = fs.getNodesForPathsRemoveAncestors(args);
+			}
 
-				if (opts.recursive) {
-					nodes = fs.getNodesForPathsRemoveChildren(this.args);
-				} else {
-					nodes = fs.getNodesForPathsRemoveAncestors(this.args);
-				}
+			var rubbishNode = fs.getRubbish();
+			if (!rubbishNode && opts.rubbish) {
+				return Defer.rejected('no_rubbish', '/Rubbish folder not found');
+			}
 
-				var rubbishNode = fs.getRubbish();
-				if (!rubbishNode && opts.rubbish) {
-					return Defer.rejected('no_rubbish', '/Rubbish folder not found');
-				}
+			function isNodeType(type, invert) {
+				return function(n) {
+					return invert ? n.type != type : n.type == type;
+				};
+			}
 
-				function isNodeType(type, invert) {
-					return function(n) {
-						return invert ? n.type != type : n.type == type;
-					};
-				}
+			var removeRoot = _(nodes).find(isNodeType(NodeType.ROOT));
+			var removeRubbish = _(nodes).find(isNodeType(NodeType.RUBBISH));
 
-				var removeRoot = _(nodes).find(isNodeType(NodeType.ROOT));
-				var removeRubbish = _(nodes).find(isNodeType(NodeType.RUBBISH));
+			// if user is removing /Rubbish recursively, we don't need to move anything to it,
+			// but we need to select its contents
+			if (removeRubbish && opts.recursive) {
+				opts.rubbish = false;
+				nodes = _(nodes).filter(isNodeType(NodeType.RUBBISH, true));
+				nodes = nodes.concat(fs.getChildren(removeRubbish));
+			}
 
-				// if user is removing /Rubbish recursively, we don't need to move anything to it,
-				// but we need to select its contents
-				if (removeRubbish && opts.recursive) {
-					opts.rubbish = false;
-					nodes = _(nodes).filter(isNodeType(NodeType.RUBBISH, true));
-					nodes = nodes.concat(fs.getChildren(removeRubbish));
-				}
+			// if user is removing /Root recursively we need to select its contents instead
+			if (removeRoot && opts.recursive) {
+				nodes = _(nodes).filter(isNodeType(NodeType.ROOT, true));
+				nodes = nodes.concat(fs.getChildren(removeRoot));
+			}
 
-				// if user is removing /Root recursively we need to select its contents instead
-				if (removeRoot && opts.recursive) {
-					nodes = _(nodes).filter(isNodeType(NodeType.ROOT, true));
-					nodes = nodes.concat(fs.getChildren(removeRoot));
-				}
+			var batch = session.api.createBatch();
 
-				session.api.startBatch();
+			_.each(nodes, function(n) {
+				var path = n.path + (n.type == NodeType.FILE ? '' : '/');
+				var op;
 
-				_.each(nodes, function(n) {
-					var path = n.path + (n.type == NodeType.FILE ? '' : '/');
-					var op;
-
-					if (n.type == NodeType.FILE) {
-						null;
-					} else if (n.type == NodeType.FOLDER) {
-						if (!opts.recursive && opts.dir && fs.getChildren(n).length != 0) {
-							Log.error("Can't remove non-empty folder " + path + ": use -r option");
-							return;
-						} else if (!opts.recursive) {
-							Log.error("Can't remove folder " + path + ": use -r or -d options");
-							return;
-						}
-					} else {
-						if (n.type == NodeType.ROOT || n.type == NodeType.RUBBISH) {
-							Log.error("Can't remove " + path + ": can only be emptied with -r option");
-						} else {
-							Log.error("Can't remove " + path + ": special folders can't be removed");
-						}
+				if (n.type == NodeType.FILE) {
+					null;
+				} else if (n.type == NodeType.FOLDER) {
+					if (!opts.recursive && opts.dir && fs.getChildren(n).length != 0) {
+						Log.error("Can't remove non-empty folder " + path + ": use -r option");
+						return;
+					} else if (!opts.recursive) {
+						Log.error("Can't remove folder " + path + ": use -r or -d options");
 						return;
 					}
-
-					if (opts.rubbish) {
-						op = {
-							a: "m",
-							n: n.handle,
-							t: rubbishNode.handle
-						};
+				} else {
+					if (n.type == NodeType.ROOT || n.type == NodeType.RUBBISH) {
+						Log.error("Can't remove " + path + ": can only be emptied with -r option");
 					} else {
-						op = {
-							a: "d",
-							n: n.handle
-						};
+						Log.error("Can't remove " + path + ": special folders can't be removed");
 					}
+					return;
+				}
 
-					session.api.callSingle(op).then(function() {
+				if (opts.rubbish) {
+					batch.moveNode(n.handle, rubbishNode.handle).then(function() {
+						Log.verbose('Moved to /Rubbish ' + path);
+					}, function(code, message) {
+						Log.error("Can't remove " + path + ": " + message);
+					});
+				} else {
+					batch.deleteNode(n.handle).then(function() {
 						Log.verbose('Removed ' + path);
 					}, function(code, message) {
 						Log.error("Can't remove " + path + ": " + message);
 					});
-				});
+				}
+			});
 
-				return session.api.sendBatch();
-			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
-		}, this);
+			return batch.send();
+		});
 	}
 });

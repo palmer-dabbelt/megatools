@@ -14,46 +14,32 @@ GW.define('Tool.FIXUP', 'tool', {
 		}].concat(this.loginOpts);
 	},
 
-	run: function(defer) {
+	run: function() {
 		var opts = this.opts;
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
+		return this.getSession().then(function(session) {
+			var fs = session.getFilesystem();
+			var issues = fs.getIssues();
 
-			function(session) {
-				var fs = session.getFilesystem();
-				var issues = fs.getIssues();
-
-				if (opts['dry-run']) {
-					_(issues.unreadableNodes).each(function(n) {
-						Log.msg('Remove unreadable node ' + n.h);
-					});
-
-					return Defer.resolved();
-				}
-
-				session.api.startBatch();
-
+			if (opts['dry-run']) {
 				_(issues.unreadableNodes).each(function(n) {
-					session.api.callSingle({
-						a: 'd',
-						n: n.h
-					}).then(function() {
-						Log.verbose('Removed unreadable node ' + n.h);
-					}, function(code, message) {
-						Log.error('Can\'t remove unreadable node ' + n.h);
-					});
+					Log.msg('Remove unreadable node ' + n.h);
 				});
 
-				return session.api.sendBatch();
+				return Defer.resolved();
 			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
-		}, this);
+
+			var batch = session.api.createBatch();
+
+			_(issues.unreadableNodes).each(function(n) {
+				batch.deleteNode(n.h).then(function() {
+					Log.verbose('Removed unreadable node ' + n.h);
+				}, function(code, message) {
+					Log.error('Can\'t remove unreadable node ' + n.h);
+				});
+			});
+
+			return batch.send();
+		});
 	}
 });

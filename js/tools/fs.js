@@ -18,7 +18,7 @@ GW.define('Tool.FS', 'tool', {
 		}].concat(this.loginOpts);
 	},
 
-//Some useful options may be: kernel_cache, auto_cache, allow_other, allow_root, nonempty.
+	//Some useful options may be: kernel_cache, auto_cache, allow_other, allow_root, nonempty.
 
 	examples: [{
 		title: 'Mount filesystem',
@@ -136,24 +136,11 @@ GW.define('Tool.FS', 'tool', {
 
 	run: function(defer) {
 		if (this.args.length != 1) {
-			Log.error('You must provide exactly one argument - a mount point for the filesystem.');
-			defer.reject(10);
-			return;
+			return Defer.rejected('args', 'You must provide exactly one argument - a mount point for the filesystem.');
 		}
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
-
-			function(session) {
-				return this.mount(session.getFilesystem(), this.args[0]);
-			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
+		return this.getSession().done(function(session) {
+			return this.mount(session.getFilesystem(), this.args[0]);
 		}, this);
 	}
 });

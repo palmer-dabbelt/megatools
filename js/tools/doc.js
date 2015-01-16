@@ -11,37 +11,31 @@ GW.define('Tool.DOC', 'tool', {
 		return [{ 
 			longName: "output",
 			shortName: 'o', 
-			argHelp: 'PATH',
+			argHelp: '<path>',
 			arg: 'string',
 			help: "Output directory"
 		}, { 
 			longName: "format",   
 			shortName: 'f',   
-			argHelp: 'FORMAT',
+			argHelp: '<format>',
 			arg: 'string',
-			help: "Output format. One of: html, txt, man."
+			help: "Output format. One of: html, txt, or man."
 		}];
 	},
 
-	run: function(defer) {
+	run: function() {
 		var opts = this.opts;
 
 		if (!opts.output) {
-			Log.error("Output directory was not specified");
-			defer.reject(10);
-			return;
+			return Defer.rejected('args', "Output directory was not specified");
 		}
 
 		if (!opts.format) {
-			Log.error("Format was not specified");
-			defer.reject(10);
-			return;
+			return Defer.rejected('args', "Format was not specified");
 		}
 
 		if (!C.dir_exists(opts.output)) {
-			Log.error("Output directory does not exist");
-			defer.reject(1);
-			return;
+			return Defer.rejected('args', "Output directory does not exist");
 		}
 
 		var renderer;
@@ -56,9 +50,7 @@ GW.define('Tool.DOC', 'tool', {
 				renderer = new Document.Renderer.Man();
 				break;
 			default:
-				Log.error("Format `" + opts.format + "` is not known");
-				defer.reject(10);
-				return;
+				return Defer.rejected('args', "Format `" + opts.format + "` is not known");
 		}
 
 		var files = [{
@@ -83,13 +75,11 @@ GW.define('Tool.DOC', 'tool', {
 			var path = C.path_clean(opts.output + '/' + f.name + renderer.suffix(f.doc));
 
 			if (!C.file_write(path, Duktape.Buffer(renderer.render(f.doc)))) {
-				Log.error("Can't write file '" + path + "'");
-				defer.reject(1);
-				return;
+				return Defer.rejected('err', "Can't write file '" + path + "'");
 			}
 		});
 
-		defer.resolve();
+		return Defer.resolved();
 	}
 });
 

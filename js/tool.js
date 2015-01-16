@@ -335,10 +335,82 @@ GW.define('Tool', 'object', {
 		}, this);
 	},
 
-	run: function(defer) {
-		Log.error('Tool ' + this.name + ' is not implemented, yet!');
+	promptCode: function(msg, codeChecker) {
+		return Defer.defer(function(defer) {
+			function ask() {
+				C.prompt(msg, function(v) {
+					var code = codeChecker(v);
+					if (code) {
+						defer.resolve(code);
+					} else if (String(v).match(/abort/)) {
+						defer.reject('no_code', 'Aborted by the user!');
+					} else {
+						ask();
+					}
+				});
+			}
 
-		defer.reject();
+			ask();
+		});
+	},
+
+	promptPassword: function(twice) {
+		return Defer.defer(function(defer) {
+			C.prompt('Enter password: ', function(password1) {
+				if (!twice) {
+					defer.resolve(password1);
+					return;
+				}
+
+				C.prompt('Repeat password: ', function(password2) {
+					if (password1 != password2) {
+						defer.reject('pass', 'Passwords don\'t match');
+					} else {
+						defer.resolve(password1);
+					}
+				}, true);
+			}, true);
+		});
+	},
+
+	acquirePasswordFromOptFileOrUser: function(optName, verify) {
+		var passwordOption = this.opts[optName];
+		var passwordFileOption = this.opts[optName + '-file'];
+
+		if (passwordOption && passwordFileOption) {
+			return Defer.rejected('args', 'Conflicting options --' + optName + ' and --' + optName + '-file');
+		}
+
+		if (passwordOption) {
+			return Defer.resolved(passwordOption);
+		} else if (passwordFileOption) {
+			var data = C.file_read(passwordFileOption);
+			if (data) {
+				return Defer.resolved(data.toString().split(/\r?\n/)[0]);
+			} else {
+				return Defer.rejected('args', 'Can\'t read password file at ' + passwordFileOption);
+			}
+		}
+
+		if (this.opts.batch) {
+			return Defer.rejected('args', 'Please specify --' + optName + ' or --' + optName + '-file');
+		} else {
+			return this.promptPassword(verify);
+		}
+	},
+
+	saveCredentials: function(username, password) {
+		if (this.opts['save-config']) {
+			var path = this.opts.config || MEGA_RC_FILENAME;
+
+			if (!C.file_write(path, Duktape.Buffer(Duktape.enc('jx', {username: username, password: password}, null, '  ')))) {
+				Log.warning('Failed to save config file at ' + path);
+			}
+		}
+	},
+
+	run: function() {
+		return Defer.rejected('not_impl', 'Tool ' + this.name + ' is not implemented, yet!');
 	},
 
 	_run: function(args) {
@@ -366,6 +438,10 @@ GW.define('Tool', 'object', {
 			return Defer.rejected(1);
 		}
 
-		return Defer.defer(this.run, this);
+		return this.run().fail(function(code, msg) {
+			Log.error(msg);
+
+			return Defer.rejected(1);
+		});
 	}
 });

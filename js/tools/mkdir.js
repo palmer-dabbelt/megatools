@@ -28,78 +28,54 @@ GW.define('Tool.MKDIR', 'tool', {
 		}].concat(this.loginOpts);
 	},
 
-	run: function(defer) {
+	run: function() {
 		var opts = this.opts;
+		var args = this.args;
 
-		if (this.args.length == 0) {
-			Log.error("You must specify <remotepaths> to create.");
-			defer.reject(10);
-			return;
+		if (args.length == 0) {
+			return Defer.rejected('args', "You must specify <remotepaths> to create.");
 		}
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
+		return this.getSession().done(function(session) {
+			var fs = session.getFilesystem();
+			var batch = session.api.createBatch();
 
-			function(session) {
-				var fs = session.getFilesystem();
-
-				session.api.startBatch();
-
-				_(this.args).each(function(path) {
-					var node = fs.getNodeByPath(path);
-					if (node) {
-						if (node.type == NodeType.FILE) {
-							Log.error('File exists at ' + path);
-						} else {
-							Log.warning('Folder already exists at ' + path);
-						}
-
-						return;
+			_(args).each(function(path) {
+				var node = fs.getNodeByPath(path);
+				if (node) {
+					if (node.type == NodeType.FILE) {
+						Log.error('File exists at ' + path);
+					} else {
+						Log.warning('Folder already exists at ' + path);
 					}
 
-					var parentPath = C.path_up(path);
-					var name = C.path_name(path);
-					var parentNode = fs.getNodeByPath(parentPath);
-					if (!parentNode) {
-						Log.warning("Parent folder doesn't exists at " + parentPath);
-						return;
-					} else if (parentNode.type == NodeType.FILE) {
-						Log.error('File exists at ' + parentPath);
-						return;
-					}
+					return;
+				}
 
-					if (!name) {
-						Log.error('Invalid path ' + path);
-						return;
-					}
+				var parentPath = C.path_up(path);
+				var name = C.path_name(path);
+				var parentNode = fs.getNodeByPath(parentPath);
+				if (!parentNode) {
+					Log.warning("Parent folder doesn't exists at " + parentPath);
+					return;
+				} else if (parentNode.type == NodeType.FILE) {
+					Log.error('File exists at ' + parentPath);
+					return;
+				}
 
-					var nk = C.aes_key_random();
+				if (!name) {
+					Log.error('Invalid path ' + path);
+					return;
+				}
 
-					session.api.callSingle({
-						a: "p",
-						t: parentNode.handle,
-						n: [{
-							h: "xxxxxxxx",
-							t: NodeType.FOLDER,
-							a: MegaAPI.makeNodeAttrs(nk, {n: name}),
-							k: C.ub64enc(C.aes_enc(session.data.mk, nk))
-						}]
-					}).then(function() {
-						Log.verbose('Created ' + path);
-					}, function(code, message) {
-						Log.error("Can't create folder " + path + ": " + message);
-					});
+				batch.createFolder(name, parentNode.handle, session.data.mk).then(function() {
+					Log.verbose('Created ' + path);
+				}, function(code, message) {
+					Log.error("Can't create folder " + path + ": " + message);
 				});
+			});
 
-				return session.api.sendBatch();
-			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
-		}, this);
+			return batch.send();
+		});
 	}
 });

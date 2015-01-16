@@ -36,7 +36,7 @@ GW.define('Tool.SHARE', 'tool', {
 			shortName: 'a',
 			argHelp: '<access>',
 			arg: 'string',
-			help: 'Access level to set up. One of: none, ro, rw, or full. Meaning no access, read-only, read-write, or full access.'
+			help: 'Access level to set up. One of: `none`, `ro`, `rw`, or `full`. Meaning no access, read-only, read-write, or full access.'
 		}, {
 			argHelp: '<remotefolders>',
 			help: [
@@ -46,27 +46,22 @@ GW.define('Tool.SHARE', 'tool', {
 		}].concat(this.loginOpts);
 	},
 
-	run: function(defer) {
-		var accessR, session, fs, api, mk;
+	run: function() {
+		var accessR;
 		var opts = this.opts;
+		var args = this.args;
 
-		if (this.args.length == 0) {
+		if (args.length == 0) {
 			if (opts.access || opts['share-with']) {
-				Log.error('Please provide paths for folders to share');
-				defer.reject(10);
-				return;
+				return Defer.rejected('args', 'Please provide paths for folders to share');
 			}
 		} else {
 			if (!opts.access) {
-				Log.error('Please provide --access option');
-				defer.reject(10);
-				return;
+				return Defer.rejected('args', 'Please provide --access option');
 			}
 
 			if (!opts['share-with']) {
-				Log.error('Please provide --share-with option');
-				defer.reject(10);
-				return;
+				return Defer.rejected('args', 'Please provide --share-with option');
 			}
 
 			switch (opts.access) {
@@ -75,140 +70,91 @@ GW.define('Tool.SHARE', 'tool', {
 				case 'rw':    accessR = 1; break;
 				case 'full':  accessR = 2; break;
 				default:
-					Log.error('Invalid --access option, must be one of: none, ro, rw, or full');
-					defer.reject(10);
-					return;
+					return Defer.rejected('args', 'Invalid --access option, must be one of: none, ro, rw, or full');
 			}
 		}
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
+		return this.getSession().done(function(session) {
+			var fs = session.getFilesystem();
+			var api = session.api;
 
-			function(s) {
-				session = s;
-				fs = session.getFilesystem();
-				api = session.api;
-				mk = session.data.mk;
-
-				// list only
-				if (this.args.length == 0) {
-					_(fs.getShares()).each(function(s) {
-						if (s.node) {
-							var user = s.contact && s.contact.email ? s.contact.email : s.user;
-							if (s.user == 'EXP') {
-								user = 'Exported folder';
-							}
-
-							var access = 'None';
-							if (s.access === 0) {
-								access = 'Read-only';
-							} else if (s.access === 1) {
-								access = 'Read-write';
-							} else if (s.access === 2) {
-								access = 'Full access';
-							}
-
-							print([
-								Utils.pad(user, 30), 
-								Utils.pad(access || '', 15), 
-								Utils.align(s.mtime ? C.date('%F %T', s.mtime) : '', 19), 
-								s.node.path
-							].join(' '));
+			// list only
+			if (args.length == 0) {
+				_(fs.getShares()).each(function(s) {
+					if (s.node) {
+						var user = s.contact && s.contact.email ? s.contact.email : s.user;
+						if (s.user == 'EXP') {
+							user = 'Exported folder';
 						}
-					});
 
-					return Defer.resolved();
-				}
+						var access = 'None';
+						if (s.access === 0) {
+							access = 'Read-only';
+						} else if (s.access === 1) {
+							access = 'Read-write';
+						} else if (s.access === 2) {
+							access = 'Full access';
+						}
 
-				return Defer.defer(function(defer) {
-					api.callSingle({
-						a: 'uk',
-						u: opts['share-with']
-					}).done(function(user) {
-						// user.pubk, user.u
+						Log.msg([
+							Utils.pad(user, 30), 
+							Utils.pad(access || '', 15), 
+							Utils.align(s.mtime ? C.date('%F %T', s.mtime) : '', 19), 
+							s.node.path
+						].join(' '));
+					}
+				});
 
-						api.startBatch();
+				return Defer.resolved();
+			}
 
-						var nodes = _(this.args).chain().map(function(path) {
-							var n = fs.getNodeByPath(path);
-							if (!n) {
-								Log.error('Path not found:', path);
-								return null;
-							} else if (n.type != NodeType.FOLDER) {
-								Log.error('Path is not shareable:', path);
-								return null;
-							}
+			return api.getPubkForAccount(opts['share-with']).done(function(res) {
+				// user.pubk, user.u
+				var batch = api.createBatch();
+				var nodes = _(args).chain().map(function(path) {
+					var n = fs.getNodeByPath(path);
+					if (!n) {
+						Log.error('Path not found:', path);
+						return null;
+					} else if (n.type != NodeType.FOLDER) {
+						Log.error('Path is not shareable:', path);
+						return null;
+					}
 
-							return n;
-						}).compact().value();
+					return n;
+				}).compact().value();
 
-						_(nodes).each(function(n) {
-							Log.msg(n);
-							if (accessR === null) {
-								api.callSingle({
-									a: "s",
-									n: n.handle,
-									s: [{
-										u: user.u,
-										r: null
-									}],
-									ha: null
-								}).fail(function(code, msg) {
-									Log.warning('Can\'t remove sharing on folder ' + n.path + ':', msg);
-								});
-
-								return;
-							}
-
-							// retrieve list of all nodes in this folder including this folder
-							var content = fs.getSelfAndChildrenDeep(n);
-
-							var sk = fs.getShareKey(n.handle), newShareKey = false;
-							if (!sk) {
-								sk = C.aes_key_random();
-								newShareKey = true;
-							}
-
-							var hb = Duktape.Buffer(n.handle);
-							var req = {
-								a: "s",
-								n: n.handle,
-								s: [{
-									u: user.u,
-									r: accessR,
-									k: C.ub64enc(C.rsa_encrypt(user.pubk, sk))
-								}],
-								ok: C.ub64enc(C.aes_enc(mk, sk)),
-								ha: C.ub64enc(C.aes_enc(mk, C.joinbuf(hb, hb)))
-							};
-
-							if (newShareKey) {
-								var nodeKeys = [];
-								_.each(content, function(contentNode, idx) {
-									if (contentNode.key_full || contentNode.key) {
-										nodeKeys.push(0, idx, C.ub64enc(C.aes_enc(sk, contentNode.key_full || contentNode.key)));
-									}
-								});
-
-								req.cr = [[n.handle], _.pluck(content, 'handle'), nodeKeys];
-							}
-
-							api.callSingle(req).fail(function(code, msg) {
-								Log.warning('Can\'t set share on folder ' + n.path + ':', msg);
-							});
+				_(nodes).each(function(n) {
+					if (accessR === null) {
+						batch.unshareFolder(n.handle, res.uh).fail(function(code, msg) {
+							Log.warning('Can\'t remove sharing on folder ' + n.path + ':', msg);
 						});
 
-						session.api.sendBatch().then(defer.resolve, defer.reject);
-					}, this);
-				}, this);
-			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
-		}, this);
+						return;
+					}
+
+					// retrieve list of all nodes in this folder including this folder
+					var sk = fs.getShareKey(n.handle);
+					if (!sk) {
+						sk = C.aes_key_random();
+					}
+
+					var content = _(fs.getSelfAndChildrenDeep(n)).chain().filter(function(n) {
+						return n.key_full || n.key;
+					}).map(function(n) {
+						return {
+							key: n.key_full || n.key,
+							handle: n.handle
+						};
+					}).value();
+
+					batch.shareFolder(n.handle, content, session.data.mk, sk, accessR, res.uh, res.pubk).fail(function(code, msg) {
+						Log.error('Can\'t set share on folder ' + n.path + ':', msg);
+					});
+				});
+
+				return batch.send();
+			});
+		});
 	}
 });

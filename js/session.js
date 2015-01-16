@@ -358,7 +358,7 @@ GW.define('Filesystem', 'object', {
 	},
 
 	load: function() {
-		return this.session.api.callSingle({
+		return this.session.api.call({
 			a: 'f',
 			c: 1,
 			r: 1

@@ -81,48 +81,36 @@ GW.define('Tool.REGISTER', 'tool', {
 		}]
 	}],
 
-	run: function(defer) {
+	run: function() {
 		// check options
-		var opts = this.opts;
+		var me = this;
+		var opts = me.opts;
 		var password, handle, signupCode;
 		var api = new MegaAPI();
 
-		if (!opts.email && !opts.confirm && !opts.ephemeral) {
-			Log.error('Nothing to do!');
-			defer.reject(10);
-			return;
+		var usedCommands = _([opts.email, opts.confirm, opts.ephemeral]).compact().length;
+		if (usedCommands > 1) {
+			return Defer.rejected('args', 'You can\'t combine --email, --confirm or --ephemeral options');
+		}
+
+		if (usedCommands == 0) {
+			return Defer.rejected('nop', 'Nothing to do!');
 		}
 
 		if (opts.email && !C.email_valid(opts.email)) {
-			Log.error('Invalid email address ' + opts.email + '!');
-			defer.reject(10);
-			return;
+			return Defer.rejected('args', 'Invalid email address ' + opts.email + '!');
 		}
 
 		if (opts.confirm) {
 			if (opts['signup-link']) {
 				signupCode = extractSignupCode(opts['signup-link']);
 				if (!signupCode) {
-					Log.error('Invalid signup link!');
-					defer.reject(10);
-					return;
+					return Defer.rejected('args', 'Invalid signup link!');
 				}
 			} else {
 				if (opts.batch) {
-					Log.error('You need to provide signup link on the command line in batch mode.');
-					defer.reject(10);
-					return;
+					return Defer.rejected('args', 'You need to provide signup link on the command line in batch mode.');
 				}
-			}
-		}
-
-		function doAction() {
-			if (opts.email) {
-				doRegister();
-			} else if (opts.confirm) {
-				doConfirm();
-			} else if (opts.ephemeral) {
-				doEphemeral();
 			}
 		}
 
@@ -133,151 +121,67 @@ GW.define('Tool.REGISTER', 'tool', {
 			}
 		}
 
-		function promptSignupLink(msg, done) {
-			C.prompt(msg, function(v) {
-				var code = extractSignupCode(v);
-				if (code) {
-					done(code);
-				} else if (String(v).match(/abort/)) {
-					done();
-				} else {
-					promptSignupLink(msg, done);
-				}
-			});
-		}
-
 		function doRegister() {
-			Defer.chain([
-				function() {
-					return api.registerUser(opts.name || 'User', opts.email, password).done(function(res) {
-						Log.debug('registerUser.done:', res);
-					});
-				},
-
-				function(res) {
-					if (opts.batch) {
-						return Defer.resolved();
-					}
-
-					return Defer.defer(function(defer) {
-						promptSignupLink('Check email account ' + opts.email + ' and enter signup link (or type abort): ', function(code) {
-							if (code) {
-								api.confirmUserFast(code, res.mk, res.pk, res.email).then(defer.resolve, defer.reject);
-							} else {
-								defer.reject('no_code', 'Aborted by the user!');
-							}
-						});
-					});
+			return api.registerUser(opts.name || 'User', opts.email, password).done(function(res) {
+				if (opts.batch) {
+					return Defer.resolved();
 				}
-			]).then(function() {
+
+				return me.promptCode('Check email account ' + opts.email + ' and enter signup link (or type abort): ', extractSignupCode).done(function(code) {
+					return api.confirmUserFast(code, res.mk, res.pk, res.email);
+				});
+			}).done(function() {
 				Log.verbose('Registration was successful!');
 				saveConfig();
-				defer.resolve();
-			}, function(code, msg) {
-				Log.error(msg);
-				defer.reject(1);
 			});
 		}
 
 		function confirmUser(code) {
-			api.confirmUser(code, password).then(function(res) {
+			return api.confirmUser(code, password).done(function(res) {
 				handle = res.email;
 				saveConfig();
-				defer.resolve();
-			}, function(code, msg) {
-				Log.error(msg);
-				defer.reject(1);
 			});
 		}
 
 		function doConfirm() {
 			if (signupCode) {
-				confirmUser(signupCode);
-				return;
+				return confirmUser(signupCode);
 			}
 
-			promptSignupLink('Enter signup link (or type abort): ', function(code) {
-				if (code) {
-					confirmUser(code);
-				} else {
-					Log.error('Aborted by the user!');
-					defer.reject(10);
-				}
+			return me.promptCode('Enter signup link (or type abort): ', extractSignupCode).done(function(code) {
+				return confirmUser(code);
 			});
 		}
 
 		function doEphemeral() {
-			api.registerEphemeral(password).then(function(res) {
+			return api.registerEphemeral(password).done(function(res) {
 				handle = res.uh;
 				saveConfig();
-				defer.resolve();
-			}, function(code, msg) {
-				Log.error(msg);
-				defer.reject(1);
+
+				if (opts.batch) {
+					Log.msg(handle);
+				} else {
+					Log.msg('Create ephemeral account: ' + handle);
+				}
 			});
 		}
 
 		function saveConfig() {
-			if (opts['save-config']) {
-				var path = opts.config || MEGA_RC_FILENAME;
+			me.saveCredentials(opts.email || handle, password);
+		}
 
-				if (!C.file_write(path, Duktape.Buffer(Duktape.enc('jx', {username: opts.email || handle, password: password}, null, '  ')))) {
-					Log.warning('Failed to save config file at ' + path);
-				}
+		return this.acquirePasswordFromOptFileOrUser('password', true).done(function(pw) {
+			password = pw;
+
+			if (opts.email) {
+				return doRegister();
+			} else if (opts.confirm) {
+				return doConfirm();
+			} else if (opts.ephemeral) {
+				return doEphemeral();
 			}
-		}
 
-		function askPassword(twice, cb) {
-			C.prompt('Enter password: ', function(password1) {
-				if (!twice) {
-					password = password1;
-					cb();
-					return;
-				}
-
-				C.prompt('Repeat password: ', function(password2) {
-					if (password1 != password2) {
-						Log.error('Passwords don\'t match');
-						defer.reject(10);
-					} else {
-						password = password1;
-						cb();
-					}
-				}, true);
-			}, true);
-		}
-
-		if (opts.password && opts['password-file']) {
-			Log.error('Conflicting options --password and --password-file');
-			defer.reject(10);
-			return;
-		}
-
-		if (opts.password) {
-			password = opts.password;
-		} else if (opts['password-file']) {
-			var data = C.file_read(opts['password-file']);
-			if (data) {
-				password = data.toString().split(/\r?\n/)[0];
-			} else {
-				Log.error('Can\'t read password file at ' + opts['password-file']);
-				defer.reject(10);
-				return;
-			}
-		}
-
-		if (_.isUndefined(password)) {
-			if (opts.batch) {
-				Log.error('Please specify --password or --password-file');
-				defer.reject(10);
-				return;
-			} else {
-				askPassword(!opts.confirm, function() {
-					doAction();
-				});
-			}
-		} else {
-			doAction();
-		}
+			return Defer.rejected('noreach', 'Should not happen');
+		});
 	}
 });

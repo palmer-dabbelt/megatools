@@ -10,7 +10,7 @@ GW.define('Tool.LS', 'tool', {
 	examples: [{
 		title: 'List all files:',
 		commands: [
-			'$ megals',
+			'$ megatools ls',
 			'/',
 			'/Contacts/',
 			'/Inbox/',
@@ -20,21 +20,13 @@ GW.define('Tool.LS', 'tool', {
 			'/Rubbish/'
 		]
 	}, {
-		title: 'List all files in the /Root, recursively and with details',
+		title: 'List all files in the /Root with details',
 		commands: [
-			'$ megals -l /Root',
+			'$ megatools ls -l /Root',
 			'',
 			'3RsS2QwJ                2             - 2013-01-22 12:31:06 /Root',
 			'2FFSiaKZ    Xz2tWWB5Dmo 0          2686 2013-04-15 08:33:47 /Root/README',
 			'udtDgR7I    Xz2tWWB5Dmo 0    4405067776 2013-04-10 19:16:02 /Root/bigfile'
-		]
-	}, {
-		title: 'List all files in the /Root, recursively and with details, show only file names:',
-		commands: [
-			'$ megals -ln /Root',
-			'',
-			'2FFSiaKZ    Xz2tWWB5Dmo 0          2686 2013-04-15 08:33:47 README',
-			'udtDgR7I    Xz2tWWB5Dmo 0    4405067776 2013-04-10 19:16:02 bigfile'
 		]
 	}],
 
@@ -54,63 +46,50 @@ GW.define('Tool.LS', 'tool', {
 		}, {
 			argHelp: '<remotepaths>',
 			help: [
-				'One or more remote filesystem paths to list. If path points to a directory, contents of the directory and the directory itself is listed. When `--names` is given, only the contents of the directory is listed.',
+				'One or more remote filesystem paths to list. If path points to a directory, contents of the directory and the directory itself is listed.',
 				'If path points to a file, the file itself is listed.',
 				'If ommited, the entire remote filesystem is listed recursively.'
 			]
-
 		}].concat(this.loginOpts, this.exportedFolderOpts);
 	},
 
-	run: function(defer) {
+	run: function() {
 		var opts = this.opts;
+		var args = this.args;
 
-		Defer.chain([
-			function() {
-				return this.getSession();
-			},
+		return this.getSession().then(function(session) {
+			var nodes, fs = session.getFilesystem();
 
-			function(session) {
-				var nodes, fs = session.getFilesystem();
+			if (args.length > 0) {
+				nodes = fs.getChildNodesForPaths(args, opts.recursive);
+			} else {
+				nodes = fs.getNodes();
+			}
 
-				if (this.args.length > 0) {
-					nodes = fs.getChildNodesForPaths(this.args, opts.recursive);
-				} else {
-					nodes = fs.getNodes();
+			nodes = _.sortBy(nodes, function(n) {
+				return n.path;
+			});
+
+			_.each(nodes, function(n) {
+				var path = n.path + (n.type == NodeType.FILE ? '' : '/');
+
+				if (n.type == NodeType.TOP) {
+					return;
 				}
 
-				nodes = _.sortBy(nodes, function(n) {
-					return n.path;
-				});
-
-				_.each(nodes, function(n) {
-					var path = n.path + (n.type == NodeType.FILE ? '' : '/');
-
-					if (n.type == NodeType.TOP) {
-						return;
-					}
-
-					if (opts['long']) {
-						print([
-							Utils.pad(n.handle || '', 11), 
-							Utils.pad(n.user || '', 11), 
-							Utils.align(n.type, 1), 
-							Utils.align(n.type == NodeType.FILE ? (opts.human ? Utils.humanSize(n.size) : n.size) : '', 11), 
-							Utils.align(n.mtime ? C.date('%F %T', n.mtime) : '', 19), 
-							path
-						].join(' '));
-					} else {
-						print(path);
-					}
-				});
-
-				return Defer.resolved();
-			}
-		], this).then(function() {
-			defer.resolve();
-		}, function(code, msg) {
-			Log.error(msg);
-			defer.reject(1);
-		}, this);
+				if (opts['long']) {
+					Log.msg([
+						Utils.pad(n.handle || '', 11), 
+						Utils.pad(n.user || '', 11), 
+						Utils.align(n.type, 1), 
+						Utils.align(n.type == NodeType.FILE ? (opts.human ? Utils.humanSize(n.size) : n.size) : '', 11), 
+						Utils.align(n.mtime ? C.date('%F %T', n.mtime) : '', 19), 
+						path
+					].join(' '));
+				} else {
+					Log.msg(path);
+				}
+			});
+		});
 	}
 });

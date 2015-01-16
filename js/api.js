@@ -56,12 +56,12 @@
  *
  * Raw API calls:
  *
- *   call(request[])       done(result[])
- *   callSingle(request)   done(result) 
+ *   callMulti(request[])       done(result[])
+ *   call(request)   done(result) 
  *
- * Note that call() may return error codes in the results array instead
+ * Note that callMulti() may return error codes in the results array instead
  * of the true return value (meaning you have to handle those on your
- * own). callSingle() handles these per-request errors behind the scenes
+ * own). call() handles these per-request errors behind the scenes
  * and calls the fail() callback with appropriate error code and message.
  *
  * You can implement any mega.co.nz API call with these, but MegaAPI
@@ -169,9 +169,9 @@ GW.define('MegaAPI', 'object', {
 	},
 
 	// }}}
-        // {{{ call
+        // {{{ callMulti
 
-	call: function(requests) {
+	callMulti: function(requests) {
 		var me = this;
 
 		return Defer.defer(function(defer) {
@@ -233,23 +233,17 @@ GW.define('MegaAPI', 'object', {
 	},
 
 	// }}}
-	// {{{ callSingle
+	// {{{ call
 
-	callSingle: function(request) {
-		if (this.batch) {
-			return this.batch.call(request);
-		}
+	call: function(request) {
+		return this.callMulti([request]).done(function(responses) {
+			if (_.isNumber(responses[0]) && responses[0] < 0) {
+				var code = this.getErrorName(responses[0]);
 
-		return Defer.defer(function(defer) {
-			this.call([request]).then(function(responses) {
-				if (_.isNumber(responses[0]) && responses[0] < 0) {
-					var code = this.getErrorName(responses[0]);
-
-					defer.reject(code, this.getErrorMessage(code));
-				} else {
-					defer.resolve(responses[0]);
-				}
-			}, defer.reject, this);
+				return Defer.rejected(code, this.getErrorMessage(code));
+			} else {
+				return Defer.resolved(responses[0]);
+			}
 		}, this);
 	},
 
@@ -260,34 +254,6 @@ GW.define('MegaAPI', 'object', {
 		return new MegaAPI.CallBatch({
 			api: this
 		});
-	},
-
-	// }}}
-	// {{{ startBatch
-
-	startBatch: function() {
-		this.batch = this.createBatch();
-	},
-
-	// }}}
-	// {{{ sendBatch
-
-	sendBatch: function() {
-		var batch = this.batch;
-		delete this.batch;
-
-		if (batch) {
-			return batch.send();
-		}
-
-		return Defer.resolved();
-	},
-
-	// }}}
-	// {{{ cancelBatch
-
-	cancelBatch: function() {
-		delete this.batch;
 	},
 
 	// }}}
@@ -306,7 +272,7 @@ GW.define('MegaAPI', 'object', {
 		var ts2 = C.aes_enc(mk, ts1);
 		var ts = C.joinbuf(ts1, ts2);
 
-		return this.callSingle({
+		return this.call({
 			a: 'up',
 			k: C.ub64enc(emk),
 			ts: C.ub64enc(ts)
@@ -346,30 +312,28 @@ GW.define('MegaAPI', 'object', {
 	loginEphemeral: function(uh, password) {
 		this.setSessionId();
 
-		return Defer.defer(function(defer) {
-			this.callSingle({
-				a: 'us',
-				user: uh
-			}).then(function(res) {
-				var pk = C.aes_key_from_password(password);
-				var emk = C.ub64dec(res.k);
-				var mk = C.aes_dec(pk, emk);
+		return this.call({
+			a: 'us',
+			user: uh
+		}).done(function(res) {
+			var pk = C.aes_key_from_password(password);
+			var emk = C.ub64dec(res.k);
+			var mk = C.aes_dec(pk, emk);
 
-				if (!this.tsOk(res.tsid, mk)) {
-					defer.reject('invalid_tsid', 'Invalid password (TSID verification failed)');
-					return;
-				}
+			if (!this.tsOk(res.tsid, mk)) {
+				defer.reject('invalid_tsid', 'Invalid password (TSID verification failed)');
+				return;
+			}
 
-				this.setSessionId(res.tsid);
+			this.setSessionId(res.tsid);
 
-				defer.resolve({
-					uh: uh,
-					sid: res.tsid,
-					password: password,
-					pk: pk,
-					mk: mk
-				});
-			}, defer.reject, this);
+			return Defer.resolved({
+				uh: uh,
+				sid: res.tsid,
+				password: password,
+				pk: pk,
+				mk: mk
+			});
 		}, this);
 	},
 
@@ -380,47 +344,45 @@ GW.define('MegaAPI', 'object', {
 	 * Login to normal account.
 	 */
 	login: function(email, password) {
+		var pk = C.aes_key_from_password(password);
+
 		this.setSessionId();
 
-		return Defer.defer(function(defer) {
-			var pk = C.aes_key_from_password(password);
+		return this.call({
+			a: 'us',
+			uh: C.make_username_hash(pk, email),
+			user: email.toLowerCase()
+		}).done(function(res) {
+			// decrypt mk
+			var emk = C.ub64dec(res.k);
+			var mk = C.aes_dec(pk, emk);
+			var sid;
 
-			this.callSingle({
-				a: 'us',
-				uh: C.make_username_hash(pk, email),
-				user: email.toLowerCase()
-			}).then(function(res) {
-                                // decrypt mk
-				var emk = C.ub64dec(res.k);
-				var mk = C.aes_dec(pk, emk);
-				var sid;
-
-				if (res.csid) {
-					sid = C.rsa_decrypt_sid(res.privk, mk, res.csid);
-					if (!sid) {
-						defer.reject('sid_decrypt_fail', 'Invalid password (CSID decryption failed)');
-						return;
-					}
-				} else if (res.tsid) {
-					if (!this.tsOk(res.tsid, mk)) {
-						defer.reject('invalid_tsid', 'Invalid password (TSID verification failed)');
-						return;
-					}
-
-					sid = res.tsid;
+			if (res.csid) {
+				sid = C.rsa_decrypt_sid(res.privk, mk, res.csid);
+				if (!sid) {
+					defer.reject('sid_decrypt_fail', 'Invalid password (CSID decryption failed)');
+					return;
+				}
+			} else if (res.tsid) {
+				if (!this.tsOk(res.tsid, mk)) {
+					defer.reject('invalid_tsid', 'Invalid password (TSID verification failed)');
+					return;
 				}
 
-				this.setSessionId(sid);
+				sid = res.tsid;
+			}
 
-				defer.resolve({
-					uh: res.u,
-					sid: sid,
-					email: email,
-					password: password,
-					pk: pk,
-					mk: mk
-				});
-			}, defer.reject, this);
+			this.setSessionId(sid);
+
+			return Defer.resolved({
+				uh: res.u,
+				sid: sid,
+				email: email,
+				password: password,
+				pk: pk,
+				mk: mk
+			});
 		}, this);
 	},
 
@@ -428,7 +390,7 @@ GW.define('MegaAPI', 'object', {
 	// {{{ getUser
 
 	getUser: function() {
-		return this.callSingle({
+		return this.call({
 			a: 'ug'
 		}).done(function(user) {
 			return Defer.resolved({
@@ -446,7 +408,7 @@ GW.define('MegaAPI', 'object', {
 	 * Returns user handle
 	 */
 	updateUser: function(data) {
-		return this.callSingle(_.extend({
+		return this.call(_.extend({
 			a: 'up'
 		}, data)).done(function(uh) {
 			return Defer.resolved({
@@ -456,6 +418,7 @@ GW.define('MegaAPI', 'object', {
 	},
 
 	// }}}
+	// {{{ requestConfirmation
 
 	/**
 	 * Request confirmation email to be sent by the server to specified email address.
@@ -464,7 +427,7 @@ GW.define('MegaAPI', 'object', {
 		var pk = C.aes_key_from_password(password);
 		var c_data = C.aes_enc(pk, C.joinbuf(mk, C.random(4), C.zerobuf(8), C.random(4)));
 
-		return this.callSingle({
+		return this.call({
 			a: 'uc',
 			c: C.ub64enc(c_data),
 			n: C.ub64enc(Duktape.Buffer(name)),
@@ -481,6 +444,9 @@ GW.define('MegaAPI', 'object', {
 		});
 	},
 
+	// }}}
+	// {{{ registerUser
+
 	/**
 	 * Register user (full registration)
 	 */
@@ -491,34 +457,27 @@ GW.define('MegaAPI', 'object', {
 		data.email = email;
 		data.name = name;
 
-		return Defer.chain([
-			function() {
-				return me.registerEphemeral(password);
-			}, 
+		return this.registerEphemeral(password).done(function(res) {
+			_.extend(data, res);
 
-			function(res) {
-				_.extend(data, res);
+			return me.loginEphemeral(data.uh, password);
+		}).then(function(res) {
+			_.extend(data, res);
 
-				return me.loginEphemeral(data.uh, password);
-			}, 
+			return me.updateUser({name: name});
+		}).then(function(res) {
+			_.extend(data, res);
 
-			function(res) {
-				_.extend(data, res);
-
-				return me.updateUser({name: name});
-			}, 
-
-			function(res) {
-				_.extend(data, res);
-
-				return me.requestConfirmation(password, data.mk, name, email);
-			}
-		]).done(function(res) {
+			return me.requestConfirmation(password, data.mk, name, email);
+		}).done(function(res) {
 			_.extend(data, res);
 
 			return Defer.resolved(data);
 		});
 	},
+
+	// }}}
+	// {{{ confirmUserFast
 
 	confirmUserFast: function(code, mk, pk, email) {
 		var data = {};
@@ -541,6 +500,9 @@ GW.define('MegaAPI', 'object', {
 		});
 	},
 
+	// }}}
+	// {{{ getConfirmationData
+
 	/**
 	 * Get data that were stored to the server for later retrival during account confirmation.
 	 *
@@ -551,56 +513,52 @@ GW.define('MegaAPI', 'object', {
 		var me = this;
 		var data = {};
 
-		return Defer.defer(function(defer) {
-			return me.callSingle({
-				a: 'ud',
-				c: code
-			}).then(function(res) {
-				data.email = C.ub64dec(res[0]).toString();
-				data.name = C.ub64dec(res[1]).toString();
-				data.uh = res[2];
-				data.pk = C.aes_key_from_password(password);
-				data.emk = C.ub64dec(res[3]);
-				data.challenge = C.aes_dec(data.pk, C.ub64dec(res[4]));
-				data.mk = C.aes_dec(data.pk, data.emk);
-				data.password = password;
+		return me.call({
+			a: 'ud',
+			c: code
+		}).then(function(res) {
+			data.email = C.ub64dec(res[0]).toString();
+			data.name = C.ub64dec(res[1]).toString();
+			data.uh = res[2];
+			data.pk = C.aes_key_from_password(password);
+			data.emk = C.ub64dec(res[3]);
+			data.challenge = C.aes_dec(data.pk, C.ub64dec(res[4]));
+			data.mk = C.aes_dec(data.pk, data.emk);
+			data.password = password;
 
-				// check challenge
-				if (C.slicebuf(data.challenge, 4, 8) == C.zerobuf(8)) {
-					defer.resolve(data);
-				} else {
-					defer.reject('bad_password', 'Invalid password');
-				}
-			}, defer.reject);
+			// check challenge
+			if (C.slicebuf(data.challenge, 4, 8) == C.zerobuf(8)) {
+				return Defer.resolved(data);
+			} else {
+				return Defer.rejected('bad_password', 'Invalid password');
+			}
 		});
 	},
+
+	// }}}
+	// {{{ confirmUser
 
 	confirmUser: function(code, password) {
 		var me = this;
 		var data = {};
 
-		return Defer.chain([
-			function() {
-				return me.getConfirmationData(code, password);
-			}, 
+		return me.getConfirmationData(code, password).done(function(res) {
+			_.extend(data, res);
 
-			function(res) {
-				_.extend(data, res);
+			return me.loginEphemeral(data.uh, password);
+		}).done(function(res) {
+			_.extend(data, res);
 
-				return me.loginEphemeral(data.uh, password);
-			}, 
-
-			function(res) {
-				_.extend(data, res);
-
-				return me.confirmUserFast(code, data.mk, data.pk, data.email);
-			}
-		]).done(function(res) {
+			return me.confirmUserFast(code, data.mk, data.pk, data.email);
+		}).done(function(res) {
 			_.extend(data, res);
 
 			return Defer.resolved(data);
 		});
 	},
+
+	// }}}
+	// {{{ completeUserReset
 
 	completeUserReset: function(code, email, password) {
 		var me = this;
@@ -611,44 +569,229 @@ GW.define('MegaAPI', 'object', {
 		var ts1 = C.random(16);
 		var ts2 = C.aes_enc(mk, ts1);
 
-		return Defer.chain([
-			function() {
-				return me.callSingle({
-					a: "erx",
-					c: code,
-					x: C.ub64enc(emk),
-					y: C.make_username_hash(pk, email),
-					z: C.ub64enc(C.joinbuf(ts1, ts2))
-				});
-			},
+		return me.call({
+			a: "erx",
+			c: code,
+			x: C.ub64enc(emk),
+			y: C.make_username_hash(pk, email),
+			z: C.ub64enc(C.joinbuf(ts1, ts2))
+		}).then(function(res) {
+			return me.login(email, password);
+		}).then(function(res) {
+			_.extend(data, res);
 
-			function() {
-				return me.login(email, password);
-			},
+			data.rsa = C.rsa_generate(data.mk);
 
-			function(res) {
-				_.extend(data, res);
-
-				data.rsa = C.rsa_generate(data.mk);
-
-				return me.updateUser({
-					pubk: data.rsa.pubk,
-					privk: data.rsa.privk
-				});
-			}
-		]).done(function() {
+			return me.updateUser({
+				pubk: data.rsa.pubk,
+				privk: data.rsa.privk
+			});
+		}).done(function() {
 			return Defer.resolved(data);
 		});
 	},
 
+	// }}}
+	// {{{ requestUserReset
+
 	requestUserReset: function(email) {
-		return this.callSingle({
+		return this.call({
 			a: "erm",
 			m: email,
 			t: 10
 		});
+	},
+
+	// }}}
+
+	// {{{ addContact
+
+	addContact: function(email) {
+		return this.call({
+			a: 'ur',
+			u: email,
+			l: 1
+		});
+	},
+
+	// }}}
+	// {{{ removeContact
+
+	removeContact: function(handle) {
+		return this.call({
+			a: 'ur',
+			u: handle,
+			l: 0
+		});
+	},
+
+	// }}}
+	// {{{ getUsage
+
+	getUsage: function() {
+		return this.call({
+			a: 'uq',
+			strg: 1,
+			xfer: 1,
+			pro: 1
+		}).done(function(res) {
+			return Defer.resolved({
+				total: res.mstrg,
+				used: res.cstrg,
+				free: res.mstrg - res.cstrg
+			});
+		});
+	},
+
+	// }}}
+	// {{{ getPublicLink
+	
+	getPublicLink: function(handle) {
+		return this.call({
+			a: 'l',
+			n: handle
+		});
+	},
+
+	// }}}
+	// {{{ removePublicLink
+	
+	removePublicLink: function(handle) {
+		return this.call({
+			a: 'l',
+			n: handle,
+			d: 1
+		});
+	},
+
+	// }}}
+	// {{{ shareFolder
+
+	/**
+	 * Content is array of {handle, key}
+	 *
+	 * shareFolder('folder-handle', [{key: Buffer, handle: 'node-handle'}, ...], Buffer, ...)
+	 */
+	shareFolder: function(handle, content, mk, sk, access, uh, pubk) {
+		var hb = Duktape.Buffer(handle);
+		var req = {
+			a: "s",
+			n: handle,
+			s: [{
+				u: uh || "EXP",
+				r: access || 0
+			}],
+			ok: C.ub64enc(C.aes_enc(mk, sk)),
+			ha: C.ub64enc(C.aes_enc(mk, C.joinbuf(hb, hb)))
+		};
+
+		if (uh) {
+			req.s[0].k = C.ub64enc(C.rsa_encrypt(pubk, sk));
+		}
+
+		var nodeKeys = [];
+		var nodeHandles = [];
+
+		_(content || []).each(function(node) {
+			nodeHandles.push(node.handle);
+			nodeKeys.push(0, nodeHandles.length - 1, C.ub64enc(C.aes_enc(sk, node.key)));
+		});
+
+		req.cr = [[handle], nodeHandles, nodeKeys];
+
+		return this.call(req);
+	},
+
+	// }}}
+	// {{{ unsahreFolder
+
+	unshareFolder: function(handle, uh) {
+		return this.call({
+			a: "s",
+			n: handle,
+			s: [{
+				u: uh,
+				r: null
+			}],
+			ha: null
+		});
+	},
+
+	// }}}
+	// {{{ getPubkForAccount
+
+	getPubkForAccount: function(email) {
+		return this.call({
+			a: 'uk',
+			u: email
+		}).done(function(res) {
+			return Defer.resolved({
+				uh: res.u,
+				pubk: res.pubk
+			});
+		});
+	},
+
+	// }}}
+	// {{{ deleteNode
+
+	deleteNode: function(handle) {
+		return this.call({
+			a: 'd',
+			n: handle
+		});
+	},
+
+	// }}}
+	// {{{ moveNode
+
+	moveNode: function(handle, newParent) {
+		return this.call({
+			a: "m",
+			n: handle,
+			t: newParent
+		});
+	},
+
+	// }}}
+	// {{{ renameNode
+
+	renameNode: function(handle, name, nk) {
+		return this.call({
+			a: "a",
+			n: handle,
+			attr: MegaAPI.makeNodeAttrs(nk, {n: name})
+			//key: C.ub64enc(C.aes_enc(session.data.mk, n.key_full))
+		});
+	},
+
+	// }}}
+	// {{{ createFolder
+
+	createFolder: function(name, parent, mk) {
+		var nk = C.aes_key_random();
+
+		return this.call({
+			a: "p",
+			t: parent,
+			n: [{
+				h: "xxxxxxxx",
+				t: NodeType.FOLDER,
+				a: MegaAPI.makeNodeAttrs(nk, {n: name}),
+				k: C.ub64enc(C.aes_enc(mk, nk))
+			}]
+		}).done(function(res) {
+			return Defer.resolved({
+				key: nk,
+				handle: res.f[0].h
+			});
+		});
 	}
+
+	// }}}
 });
+
+// {{{ MegaAPI static helper functions
 
 _.extend(MegaAPI, {
 	makeNodeAttrs: function(nk, attrs) {
@@ -668,6 +811,9 @@ _.extend(MegaAPI, {
 		return null;
 	}
 });
+
+// }}}
+// {{{ MegaAPI.CallBatch
 
 GW.define('MegaAPI.CallBatch', 'object', {
 	api: null,
@@ -689,7 +835,7 @@ GW.define('MegaAPI.CallBatch', 'object', {
 		var calls = this.calls;
 
 		if (calls.length > 0) {
-			return this.api.call(_.pluck(calls, 'request')).then(function(responses) {
+			return this.api.callMulti(_.pluck(calls, 'request')).then(function(responses) {
 				_.each(responses, function(response, idx) {
 					var defer = calls[idx];
 
@@ -713,3 +859,24 @@ GW.define('MegaAPI.CallBatch', 'object', {
 		return this.calls.length == 0;
 	}
 });
+
+// link batchable functions from MegaAPI class
+
+_([
+	'addContact',
+	'removeContact',
+	'getUsage',
+	'getPublicLink',
+	'removePublicLink',
+	'shareFolder',
+	'unshareFolder',
+	'getPubkForAccount',
+	'deleteNode',
+	'moveNode',
+	'renameNode',
+	'createFolder'
+]).each(function(functionName) {
+	MegaAPI.CallBatch.prototype[functionName] = MegaAPI.prototype[functionName];
+});
+
+// }}}
