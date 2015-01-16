@@ -40,12 +40,6 @@ GW.define('Application', 'object', {
 		});
 	},
 
-	getTestSuites: function(name) {
-		return _(GW.Class.__classXTypeIndex__).filter(function(cls, xtype) {
-			return xtype.match(/^testsuite\./) && (!name || name == cls.prototype.name);
-		});
-	},
-
 	getHelp: function() {
 		var doc = new Document({
 			name: 'megatools',
@@ -163,23 +157,15 @@ GW.define('Application', 'object', {
 	},
 
 	runTests: function(cmd) {
-		// run tests
-		var tests = _(this.getTestSuites(cmd.args[0])).map(function(cls) {
-			var test = new cls();
+		var manager = new TestManager();
 
-			return function() {
-				return test.run(cmd.args[1]);
-			};
-		});
+		manager.run(cmd.args[0], cmd.args[1]).done(function(report) {
+                        report.saveHtml('test-report.html');
+                        report.saveJson('test-report.json');
 
-		print('Running tests:\n');
-
-		Defer.chain(tests).then(function() {
-			print('\nAll OK!\n');
-			C.exit(0);
-		}, function() {
-			print('\nTest FAILED!\n');
-			C.exit(1);
+			Utils.exec(['xdg-open', 'test-report.html']).complete(function() {
+				C.exit(report.isSuccess() ? 0 : 1);
+			});
 		});
 	},
 

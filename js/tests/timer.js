@@ -1,17 +1,22 @@
 GW.define('TestSuite.Timer', 'TestSuite', {
 	name: 'timer',
 
-	tests: [{
-		name: 'timer',
-		run: function() {
-			var start = (new Date).getTime();
-			C.timeout(_.bind(function() {
-				var end = (new Date).getTime();
-                                var dur = end - start;
+	getTests: function() {
+		return [{
+			name: 'timer',
+			run: function(test) {
+				return Defer.defer(function(defer) {
+					var start = (new Date).getTime();
 
-				this.assertEqApprox(dur, 500, 10, 'dur != real time');
-				this.done();
-			}, this), 500);
-		}
-	}]
+					C.timeout(function() {
+						var end = (new Date).getTime();
+						var dur = end - start;
+
+						test.assertEqApprox(dur, 500, 10, 'dur != real time');
+						defer.resolve();
+					}, 500);
+				});
+			}
+		}];
+	}
 });
