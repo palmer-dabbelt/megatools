@@ -18,7 +18,18 @@ const gchar*	js_get_object_string	(duk_context* ctx, duk_idx_t index, const gcha
 guint64		js_get_object_uint64	(duk_context* ctx, duk_idx_t index, const gchar* name);
 gboolean        js_get_object_boolean   (duk_context* ctx, duk_idx_t index, const gchar* name);
 
-guint64		js_require_uint64(duk_context* ctx, duk_idx_t idx);
-void		js_push_uint64(duk_context* ctx, guint64 v);
+guint64		js_require_uint64	(duk_context* ctx, duk_idx_t idx);
+void		js_push_uint64		(duk_context* ctx, guint64 v);
+
+void		js_c_class_create	(duk_context* ctx, const gchar* name, gsize data_size, GDestroyNotify data_free);
+gpointer	js_c_object_new		(duk_context* ctx, const gchar* cls_name);
+gpointer	js_c_object_get		(duk_context* ctx, duk_idx_t idx, const gchar* cls_name);
+gpointer	js_c_object_require	(duk_context* ctx, duk_idx_t idx, const gchar* cls_name);
+gpointer	js_c_object_this	(duk_context* ctx, const gchar* cls_name);
+
+void		js_throw_gerror		(duk_context* ctx, GError* error);
+
+void            js_push_gbytes          (duk_context* ctx, GBytes* bytes);
+GBytes*         js_get_gbytes           (duk_context* ctx, duk_idx_t idx);
 
 #endif

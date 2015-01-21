@@ -856,6 +856,162 @@ static int js_email_valid(duk_context *ctx)
 
 // }}}
 
+// {{{ exec
+
+// setup methods, proerpties, etc.
+
+typedef struct {
+	GSubprocess* process;
+	GCancellable* cancel;
+	JsRef* ref;
+	duk_context* ctx;
+} ExecData;
+
+static void exec_data_free(ExecData* data)
+{
+	g_clear_object(&data->process);
+	g_clear_object(&data->cancel);
+}
+
+static void exec_comunicate_finish(GSubprocess* process, GAsyncResult* res, ExecData* data)
+{
+	gc_bytes_unref GBytes* stdout_buf = NULL;
+	gc_bytes_unref GBytes* stderr_buf = NULL;
+	gc_error_free GError* error = NULL;
+
+	duk_context* ctx = js_ref_push(data->ref);
+
+	if (g_subprocess_communicate_finish(process, res, &stdout_buf, &stderr_buf, &error)) {
+		if (js_get_object_function(ctx, -1, "oncomplete")) {
+			duk_dup(ctx, -2);
+			js_push_gbytes(ctx, stdout_buf);
+			js_push_gbytes(ctx, stderr_buf);
+
+			if (g_subprocess_get_if_exited(process)) {
+				gint status = g_subprocess_get_exit_status(process);
+				duk_push_int(ctx, status);
+			} else {
+				duk_push_undefined(ctx);
+			}
+
+			if (duk_pcall_method(ctx, 3))
+				js_handle_exception(ctx, "[exec oncomplete]");
+		}
+
+	} else {
+		if (js_get_object_function(ctx, -1, "onerror")) {
+			duk_dup(ctx, -2);
+
+			duk_push_string(ctx, "exec_error");
+			duk_push_string(ctx, error->message);
+
+			if (duk_pcall_method(ctx, 2))
+				js_handle_exception(ctx, "[exec onerror]");
+		}
+	}
+
+	// pop request object
+	duk_pop(ctx);
+	js_ref_drop(data->ref);
+}
+
+static duk_ret_t js_exec(duk_context* ctx)
+{
+	GError* local_err = NULL;
+
+	duk_to_object(ctx, 0);
+
+	duk_get_prop_string(ctx, 0, "stdin");
+	gc_bytes_unref GBytes* stdin_data = js_get_gbytes(ctx, -1);
+	if (!stdin_data)
+		stdin_data = g_bytes_new("", 0);
+	duk_pop(ctx);
+
+	// process cmd (array or string)
+	duk_get_prop_string(ctx, 0, "cmd");
+
+	gc_strfreev gchar** argv = NULL;
+
+	if (duk_is_string(ctx, -1)) {
+		const gchar* cmd = duk_get_string(ctx, -1);
+
+		if (!g_shell_parse_argv(cmd, NULL, &argv, &local_err)) {
+			js_throw_gerror(ctx, local_err);
+		}
+
+	} else if (duk_is_array(ctx, -1)) {
+		GPtrArray* argv_arr = g_ptr_array_sized_new(10);
+
+		duk_enum(ctx, -1, DUK_ENUM_ARRAY_INDICES_ONLY | DUK_ENUM_SORT_ARRAY_INDICES);
+		while (duk_next(ctx, -1 , 1)) {
+                        duk_to_string(ctx, -1);
+			g_ptr_array_add(argv_arr, g_strdup(duk_get_string(ctx, -1)));
+			duk_pop_2(ctx);
+		}
+
+		duk_pop(ctx);
+
+		g_ptr_array_add(argv_arr, NULL);
+		argv = (gchar**)g_ptr_array_free(argv_arr, FALSE);
+	} else {
+		duk_error(ctx, DUK_ERR_API_ERROR, "You must provide cmd for C.exec");
+	}
+
+	duk_pop(ctx);
+
+	// copy handlers
+
+	ExecData* data = js_c_object_new(ctx, "exec");
+
+	if (js_get_object_function(ctx, 0, "oncomplete"))
+		duk_put_prop_string(ctx, -2, "oncomplete");
+
+	if (js_get_object_function(ctx, 0, "onerror"))
+		duk_put_prop_string(ctx, -2, "onerror");
+
+	data->process = g_subprocess_newv((const gchar* const*)argv, G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE | G_SUBPROCESS_FLAGS_STDIN_PIPE, &local_err);
+        if (data->process == NULL) {
+		if (js_get_object_function(ctx, 0, "onerror")) {
+			duk_dup(ctx, -2);
+
+			duk_push_string(ctx, "exec_error");
+			duk_push_string(ctx, local_err->message);
+
+			if (duk_pcall_method(ctx, 2))
+				js_handle_exception(ctx, "[exec onerror]");
+
+                        duk_pop(ctx);
+		}
+
+		return 0;
+	}
+
+	data->ref = js_ref_take(ctx);
+	data->ctx = ctx;
+	data->cancel = g_cancellable_new();
+
+	g_subprocess_communicate_async(data->process, stdin_data, data->cancel, (GAsyncReadyCallback)exec_comunicate_finish, data);
+
+	return 1;
+}
+
+static duk_ret_t js_exec_kill(duk_context* ctx)
+{
+	ExecData* data = js_c_object_this(ctx, "exec");
+
+	g_subprocess_force_exit(data->process);
+
+	return 0;
+}
+
+static const duk_function_list_entry exec_methods[] = 
+{
+	{ "kill", js_exec_kill, 0 },
+	{ NULL, NULL, 0 }
+};
+
+// }}}
+
 static const duk_function_list_entry module_funcs[] = 
 {
 	{ "timeout", js_timeout, 2 },
@@ -888,6 +1044,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "path_up", js_path_up, 1 },
 	{ "path_name", js_path_name, 1 },
 	{ "email_valid", js_email_valid, 1 },
+	{ "exec", js_exec, 1 },
 	{ NULL, NULL, 0 }
 };
 
@@ -910,4 +1067,8 @@ void js_misc_init(duk_context* ctx)
 	duk_push_uint(ctx, tigetnum("cols"));
 	duk_put_prop_string(ctx, -2, "term_cols");
 #endif
+
+	js_c_class_create(ctx, "exec", sizeof(ExecData), (GDestroyNotify)exec_data_free);
+	duk_put_function_list(ctx, -1, exec_methods);
+	duk_pop(ctx);
 }

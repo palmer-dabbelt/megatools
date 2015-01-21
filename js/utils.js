@@ -34,6 +34,25 @@ Utils = {
 		s = String(s);
 
 		return Utils.space.substr(0, len - s.length) + s;
+	},
+
+	exec: function(cmd, stdin) {
+		return Defer.defer(function(defer) {
+			C.exec({
+				cmd: cmd,
+				stdin: stdin,
+				oncomplete: function(stdout, stderr, status) {
+					if (status == 0) {
+						defer.resolve(stdout, stderr);
+					} else {
+						defer.reject('exec-fail-status', 'Command ' + (_.isArray(cmd) ? cmd.join(' ') : cmd) + ' failed with status ' + status, stdout, stderr, status);
+					}
+				},
+				onerror: function(code, msg) {
+					defer.reject(code, msg);
+				}
+			});
+		});
 	}
 };
 
