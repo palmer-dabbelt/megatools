@@ -14,8 +14,7 @@ JsRef* js_ref_take(duk_context* ctx)
 	g_return_val_if_fail(ctx != NULL, NULL);
 
 	// if undefined, pop and return NULL
-	if (duk_is_undefined(ctx, -1)) {
-		duk_pop(ctx);
+	if (duk_is_null_or_undefined(ctx, -1)) {
 		return NULL;
 	}
 
@@ -55,9 +54,11 @@ JsRef* js_ref_take(duk_context* ctx)
 		ref->idx = duk_get_length(ctx, -1);
 	}
 
-	duk_swap_top(ctx, -2);
+	// [... ref refs]
 
-	// [... refs ref]
+        duk_dup(ctx, -2);
+
+	// [... ref refs ref]
 
 	// refs[ref] = value
 	duk_put_prop_index(ctx, -2, ref->idx);
