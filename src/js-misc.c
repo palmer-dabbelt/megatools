@@ -140,6 +140,8 @@ static gboolean js_timeout_callback(JsRef* ref)
 
 		if (duk_pcall_method(ctx, 0))
 			js_handle_exception(ctx, "[timeout]");
+
+                duk_pop(ctx);
 	}
 
 	duk_pop(ctx);
@@ -263,6 +265,8 @@ static gboolean js_prompt_callback(PromptData* data)
 
 		if (duk_pcall_method(ctx, 1))
 			js_handle_exception(ctx, "[prompt]");
+
+                duk_pop(ctx);
 	}
 
 	duk_pop(ctx);
@@ -905,6 +909,8 @@ static void exec_comunicate_finish(GSubprocess* process, GAsyncResult* res, Exec
 
 			if (duk_pcall_method(ctx, 3))
 				js_handle_exception(ctx, "[exec oncomplete]");
+
+                        duk_pop(ctx);
 		}
 
 	} else {
@@ -916,6 +922,8 @@ static void exec_comunicate_finish(GSubprocess* process, GAsyncResult* res, Exec
 
 			if (duk_pcall_method(ctx, 2))
 				js_handle_exception(ctx, "[exec onerror]");
+
+                        duk_pop(ctx);
 		}
 	}
 

@@ -48,6 +48,8 @@ static void event_callback(HttpRequest* request, HttpRequestEvent* event, JsRef*
 		// call callback fn
 		if (duk_pcall_method(ctx, nargs))
 			js_handle_exception(ctx, "[http event]");
+
+                duk_pop(ctx);
 	}
 
 	// pop request object

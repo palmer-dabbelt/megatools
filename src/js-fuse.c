@@ -190,6 +190,8 @@ static gboolean emit_idle(Event* event)
 		
 		if (duk_pcall_method(ctx, args))
 			js_handle_exception(ctx, "[fuse callback]");
+
+                duk_pop(ctx);
 	}
 
 	duk_pop(ctx);
