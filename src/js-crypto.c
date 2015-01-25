@@ -36,7 +36,7 @@ static int js_ub64enc(duk_context *ctx)
 	duk_size_t len;
 	guchar* buf = duk_require_buffer(ctx, 0, &len);
 
-	gchar* str = crypto_base64urlencode(buf, len);
+	gc_free gchar* str = crypto_base64urlencode(buf, len);
 	duk_push_string(ctx, str);
 	return 1;
 }
