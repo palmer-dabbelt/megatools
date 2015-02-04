@@ -472,6 +472,15 @@ static int js_get_current_dir(duk_context *ctx)
 }
 
 // }}}
+// {{{ js_set_current_dir
+
+static int js_set_current_dir(duk_context *ctx)
+{
+	g_chdir(duk_require_string(ctx, 0));
+	return 0;
+}
+
+// }}}
 // {{{ js_get_home_dir
 
 static int js_get_home_dir(duk_context *ctx)
@@ -1032,6 +1041,7 @@ static const duk_function_list_entry module_funcs[] =
 	{ "sha256_digest", js_sha256_digest, 1 },
 	{ "get_tmp_dir", js_get_tmp_dir, 0 },
 	{ "get_current_dir", js_get_current_dir, 0 },
+	{ "set_current_dir", js_set_current_dir, 1 },
 	{ "get_home_dir", js_get_home_dir, 0 },
 	{ "get_config_dir", js_get_config_dir, 0 },
 	{ "file_node_key_unpack", js_file_node_key_unpack, 1 },
