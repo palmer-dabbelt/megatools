@@ -438,8 +438,12 @@ GW.define('Tool', 'object', {
 			return Defer.rejected(1);
 		}
 
-		return this.run().fail(function(code, msg) {
+		return this.run().fail(function(code, msg, ex) {
 			Log.error(msg);
+
+			if (ex) {
+				Log.msg(ex.stack);
+			}
 
 			return Defer.rejected(1);
 		});
