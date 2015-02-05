@@ -1,94 +1,113 @@
-Defer = {};
+Defer = {
+	PENDING: 0,
+	RESOLVED: 1,
+	REJECTED: 2
+};
 
 Defer.defer = function(init, scope) {
-        var resolveCallbacks = [];
-        var rejectCallbacks = [];
-	var state = null;
+        var subscribers = [];
+	var state = 0;
 	var args;
 
-	function callCallback(cb) {
-		cb.apply(null, args);
+	function dispatch(child, onResolve, onReject, scope) {
+		var callback = arguments[state], chain;
+
+		if (_.isFunction(callback)) {
+			try {
+				chain = callback.apply(scope || defer, args);
+			} catch (ex) {
+				child.reject('exception', ex.message, ex);
+				return;
+			}
+
+			if (chain && chain.isDeferred) {
+				chain.then(child.resolve, child.reject);
+				return;
+			}
+		}
+
+		child[state == Defer.RESOLVED ? 'resolve' : 'reject'].apply(null, args);
 	}
 
 	var defer = {
 		isDeferred: true,
 
 		getState: function() {
-			return state || 'pending';
-		},
-
-		getArgs: function() {
-			return args;
-		},
-
-		setArgs: function() {
-			args = Array.prototype.slice.call(arguments);
+			return state;
 		},
 
 		resolve: function() {
 			if (!state) {
-				state = 'resolved';
+				state = Defer.RESOLVED;
 				args = Array.prototype.slice.call(arguments);
 
-				_.each(resolveCallbacks, callCallback);
+				var i;
+				for (i = 0; i < subscribers.length; i++) {
+					dispatch.apply(null, subscribers[i]);
+				}
 			}
 		},
 
 		reject: function() {
 			if (!state) {
-				state = 'rejected';
+				state = Defer.REJECTED;
 				args = Array.prototype.slice.call(arguments);
 
-				_.each(rejectCallbacks, callCallback);
+				var i;
+				for (i = 0; i < subscribers.length; i++) {
+					dispatch.apply(null, subscribers[i]);
+				}
 			}
 		},
 
 		then: function(onResolve, onReject, scope) {
-			return defer.done(onResolve, scope).fail(onReject, scope);
+			if (state === Defer.RESOLVED && !onResolve || state === Defer.REJECTED && !onReject) {
+				return defer;
+			}
+
+			var child = Defer.defer();
+
+			if (state) {
+				dispatch(child, onResolve, onReject, scope);
+			} else {
+				subscribers.push([child, onResolve, onReject, scope]);
+			}
+
+			return child;
 		},
 
 		done: function(cb, scope) {
-			if (cb && state == 'resolved') {
-				callCallback(_.bind(cb, scope || defer));
-			} else if (cb && !state) {
-				resolveCallbacks.push(_.bind(cb, scope || defer));
-			}
-
-			return defer;
+			return defer.then(cb, undefined, scope);
 		},
 
 		fail: function(cb, scope) {
-			if (cb && state == 'rejected') {
-				callCallback(_.bind(cb, scope || defer));
-			} else if (cb && !state) {
-				rejectCallbacks.push(_.bind(cb, scope || defer));
-			}
-
-			return defer;
+			return defer.then(undefined, cb, scope);
 		},
 
 		complete: function(cb, scope) {
-			return defer.done(cb, scope).fail(cb, scope);
+			return defer.then(cb, cb, scope);
 		}
 	};
 
-	init && init.call(scope || defer, defer);
+	try {
+		init && init.call(scope || defer, defer);
+	} catch (ex) {
+		defer.reject('exception', ex.message, ex);
+	}
 
 	return defer;
 };
 
 Defer.resolved = function() {
-	var args = Array.prototype.slice.call(arguments);
-	return Defer.defer(function(defer) {
-		defer.resolve.apply(null, args);
-	});
+	var defer = Defer.defer();
+	defer.resolve.apply(null, arguments);
+	return defer;
 };
 
 Defer.rejected = function() {
-	var args = Array.prototype.slice.call(arguments);
-	return Defer.defer(function(defer) {
-		defer.reject.apply(null, args);
-	});
+	var defer = Defer.defer();
+	defer.reject.apply(null, arguments);
+	return defer;
 };
 
 Defer.timeout = function(timeout) {
@@ -118,7 +137,7 @@ Defer.when = function(defers) {
 
 	function checkDone() {
 		var done = !_.find(defers, function(d) {
-			return d.getState() == 'pending';
+			return !d.getState();
 		}) || defers.length == 0;
 
 		if (done) {
@@ -142,23 +161,16 @@ Defer.when = function(defers) {
 };
 
 Defer.chain = function(runners, scope) {
-	return Defer.defer(function(defer) {
-		function runNext() {
-			var runner = runners.shift();
-			if (runner) {
-				var nextDefer = runner.apply(scope || defer, arguments);
-				if (!nextDefer || !nextDefer.isDeferred) {
-					throw new Error('Chain runner did not return a deferred object');
-				}
+	var runner, first = runners.shift();
 
-				nextDefer.then(function() {
-					runNext.apply(null, arguments);
-				}, defer.reject);
-			} else {
-				defer.resolve.apply(null, arguments);
-			}
-		}
+	if (!first) {
+		return Defer.resolved();
+	}
 
-		runNext();
-	});
+	var defer = first();
+	while ((runner = runners.shift())) {
+		defer = defer.then(runner);
+	}
+
+	return defer;
 };

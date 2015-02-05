@@ -311,7 +311,7 @@ GW.define('MegaAPI', 'object', {
 			k: C.ub64enc(emk),
 			ts: C.ub64enc(ts)
 		}).done(function(uh) {
-			this.setArgs({
+			return Defer.resolved({
 				uh: uh,
 				password: password,
 				ts: ts,
@@ -431,7 +431,7 @@ GW.define('MegaAPI', 'object', {
 		return this.callSingle({
 			a: 'ug'
 		}).done(function(user) {
-			this.setArgs({
+			return Defer.resolved({
 				user: user
 			});
 		});
@@ -449,7 +449,7 @@ GW.define('MegaAPI', 'object', {
 		return this.callSingle(_.extend({
 			a: 'up'
 		}, data)).done(function(uh) {
-			this.setArgs({
+			return Defer.resolved({
 				uh: uh
 			});
 		});
@@ -470,7 +470,7 @@ GW.define('MegaAPI', 'object', {
 			n: C.ub64enc(Duktape.Buffer(name)),
 			m: C.ub64enc(Duktape.Buffer(email))
 		}).done(function(data) {
-			this.setArgs({
+			return Defer.resolved({
 				data: data,
 				password: password,
 				mk: mk,
@@ -516,7 +516,7 @@ GW.define('MegaAPI', 'object', {
 		]).done(function(res) {
 			_.extend(data, res);
 
-			this.setArgs(data);
+			return Defer.resolved(data);
 		});
 	},
 
@@ -537,7 +537,7 @@ GW.define('MegaAPI', 'object', {
 		}).done(function(res) {
 			_.extend(data, res);
 
-			this.setArgs(data);
+			return Defer.resolved(data);
 		});
 	},
 
@@ -598,7 +598,7 @@ GW.define('MegaAPI', 'object', {
 		]).done(function(res) {
 			_.extend(data, res);
 
-			this.setArgs(data);
+			return Defer.resolved(data);
 		});
 	},
 
@@ -637,7 +637,7 @@ GW.define('MegaAPI', 'object', {
 				});
 			}
 		]).done(function() {
-			this.setArgs(data);
+			return Defer.resolved(data);
 		});
 	},
 

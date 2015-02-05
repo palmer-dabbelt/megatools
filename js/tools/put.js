@@ -193,7 +193,7 @@ GW.define('Tool.PUT', 'tool', {
 				});
 			});
 
-			if (defer.getState() != 'pending') {
+			if (defer.getState()) {
 				return;
 			}
 		}
