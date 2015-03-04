@@ -863,6 +863,13 @@ GW.define('MegaAPI.CallBatch', 'object', {
 // link batchable functions from MegaAPI class
 
 _([
+	// error handling helper
+	'errorCodes',
+	'errorMessages',
+	'getErrorName',
+        'getErrorMessage',
+
+	// api calls
 	'addContact',
 	'removeContact',
 	'getUsage',
