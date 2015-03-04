@@ -332,6 +332,11 @@ GW.define('Filesystem', 'object', {
 				Log.warning('Attribute decryption failed', data);
 				return null;
 			}
+			
+			if (!_.isString(n.name) || n.name == '') {
+				Log.warning('Node has invalid or empty name', n.name, data);
+				return null;
+			}
 
 			if (C.os == 'windows') {
 				if (n.name == '.' || n.name == '..' || n.name.match(/\/\\<>:"\|\?\*/)) {
