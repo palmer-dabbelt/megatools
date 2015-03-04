@@ -638,7 +638,7 @@ GW.define('MegaAPI', 'object', {
 			return Defer.resolved({
 				total: res.mstrg,
 				used: res.cstrg,
-				free: res.mstrg - res.cstrg
+				free: res.mstrg > res.cstrg ? res.mstrg - res.cstrg : 0
 			});
 		});
 	},
