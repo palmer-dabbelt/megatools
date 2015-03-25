@@ -4,6 +4,7 @@
 #include <gio/gio.h>
 #include "http.h"
 #include "alloc.h"
+#include <gnutls/gnutls.h>
 
 #define D_BIT(n)                    (1u << n)
 #define D_NONE                      0
@@ -531,6 +532,64 @@ static gboolean parse_http_status(const gchar* line, gint* status, gchar** messa
 // }}}
 // {{{ http_connection_do_request
 
+struct {
+	gsize len;
+	guchar* data;
+} pinned_keys[] = {
+	{
+		.len = 294,
+		.data = "\x30\x82\x01\x22\x30\x0D\x06\x09\x2A\x86\x48\x86\xF7\x0D\x01\x01\x01\x05\x00\x03\x82\x01\x0F\x00\x30\x82\x01\x0A\x02\x82\x01\x01\x00\xB6\x61\xE7\xCF\x69\x2A\x84\x35\x05\xC3\x14\xBC\x95\xCF\x94\x33\x1C\x82\x67\x3B\x04\x35\x11\xA0\x8D\xC8\x9D\xBB\x9C\x79\x65\xE7\x10\xD9\x91\x80\xC7\x81\x0C\xF4\x95\xBB\xB3\x26\x9B\x97\xD2\x14\x0F\x0B\xCA\xF0\x5E\x45\x7B\x32\xC6\xA4\x7D\x7A\xFE\x11\xE7\xB2\x5E\x21\x55\x23\x22\x1A\xCA\x1A\xF9\x21\xE1\x4E\xB7\x82\x0D\xEB\x9D\xCB\x4E\x3D\x0B\xE4\xED\x4A\xEF\xE4\xAB\x0C\xEC\x09\x69\xFE\xAE\x43\xEC\x19\x04\x3D\x5B\x68\x0F\x67\xE8\x80\xFF\x9B\x03\xEA\x50\xAB\x16\xD7\xE0\x4C\xB4\x42\xEF\x31\xE2\x32\x9F\xE4\xD5\xF4\xD8\xFD\x82\xCC\xC4\x50\xD9\x4D\xB5\xFB\x6D\xA2\xF3\xAF\x37\x67\x7F\x96\x4C\x54\x3D\x9B\x1C\xBD\x5C\x31\x6D\x10\x43\xD8\x22\x21\x01\x87\x63\x22\x89\x17\xCA\x92\xCB\xCB\xEC\xE8\xC7\xFF\x58\xE8\x18\xC4\xCE\x1B\xE5\x4F\x20\xA8\xCF\xD3\xB9\x9D\x5A\x7A\x69\xF2\xCA\x48\xF8\x87\x95\x3A\x32\x70\xB3\x1A\xF0\xC4\x45\x70\x43\x58\x18\xDA\x85\x29\x1D\xAF\x83\xC2\x35\xA9\xC1\x73\x76\xB4\x47\x22\x2B\x42\x9F\x93\x72\x3F\x9D\x3D\xA1\x47\x3D\xB0\x46\x37\x1B\xFD\x0E\x28\x68\xA0\xF6\x1D\x62\xB2\xDC\x69\xC7\x9B\x09\x1E\xB5\x47\x02\x03\x01\x00\x01"
+	},
+};
+
+static int verify_pubkey(const char *file, const char *host, const char *service, const gnutls_datum_t * pubkey)
+{
+	int i;
+	for (i = 0; i < G_N_ELEMENTS(pinned_keys); i++) {
+		if (pinned_keys[i].len == pubkey->size && memcmp(pubkey->data, pinned_keys[i].data, pubkey->size) == 0) {
+			return 0;
+		}
+	}
+
+	return GNUTLS_E_NO_CERTIFICATE_FOUND;
+}
+
+static gboolean client_accept_certificate(GTlsConnection *conn, GTlsCertificate *peer_cert, GTlsCertificateFlags errors, gpointer user_data)
+{
+	gc_byte_array_unref GByteArray* der = NULL;
+	g_object_get(peer_cert, "certificate", &der, NULL);
+
+	if (der == NULL) {
+		return FALSE;
+	}
+
+	gnutls_datum_t der_datum = {
+		.data = der->data,
+		.size = der->len
+	};
+
+	gnutls_tdb_t tdb = NULL;
+	gnutls_tdb_init(&tdb);
+	gnutls_tdb_set_verify_func(tdb, verify_pubkey);
+
+	if (gnutls_verify_stored_pubkey(NULL, tdb, NULL, NULL, GNUTLS_CRT_X509, &der_datum, 0) < 0) {
+		gnutls_tdb_deinit(tdb);
+		return FALSE;
+	}
+
+	gnutls_tdb_deinit(tdb);
+	return TRUE;
+}
+
+static void client_event(GSocketClient *client, GSocketClientEvent event, GSocketConnectable *connectable, GIOStream *connection, HttpConnection* http_connection)
+{
+	if (event == G_SOCKET_CLIENT_TLS_HANDSHAKING) {
+		g_signal_connect(connection, "accept-certificate", G_CALLBACK(client_accept_certificate), http_connection);
+
+		g_tls_connection_set_database(G_TLS_CONNECTION(connection), NULL);
+	}
+}
+
 static gboolean http_connection_do_request(HttpConnection* connection, HttpRequest* request)
 {
 	gc_error_free GError* local_err = NULL;
@@ -551,6 +610,8 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 
 		connection->client = g_socket_client_new();
 
+		g_signal_connect(connection->client, "event", G_CALLBACK(client_event), connection);
+
 		// disable proxy settings and dbus error
 		GProxyResolver* proxy_resolver = g_simple_proxy_resolver_new(NULL, NULL);
 		g_socket_client_set_proxy_resolver(connection->client, proxy_resolver);
@@ -564,7 +625,6 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 		}
 
 		g_socket_client_set_tls(connection->client, request->secure);
-		g_socket_client_set_tls_validation_flags(connection->client, G_TLS_CERTIFICATE_VALIDATE_ALL & ~G_TLS_CERTIFICATE_UNKNOWN_CA & ~G_TLS_CERTIFICATE_BAD_IDENTITY);
 
 		gc_free gchar* uri = g_strdup_printf("%s://%s:%u", request->secure ? "https" : "http", request->host, request->port);
 		connection->conn = g_socket_client_connect_to_uri(connection->client, uri, request->port, NULL, &local_err);

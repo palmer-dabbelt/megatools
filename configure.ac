@@ -20,6 +20,7 @@ GLIB_VERSION="2.32.0"
 NETTLE_REQUIRES="nettle >= 2.7 hogweed >= 2.7"
 FUSE_REQUIRES="fuse"
 NCURSES_REQUIRES="ncurses"
+GNUTLS_REQUIRES="gnutls"
 
 # check for glib/gio
 AM_PATH_GLIB_2_0([$GLIB_VERSION],,AC_MSG_ERROR([Glib $GLIB_VERSION or later is required to build megatools]),[gobject gio])
@@ -33,6 +34,11 @@ AC_CHECK_LIB(gmp,__gmpz_init,, [AC_MSG_ERROR([GNU MP not found, see http://swox.
 PKG_CHECK_MODULES(NETTLE, [$NETTLE_REQUIRES])
 AC_SUBST(NETTLE_CFLAGS)
 AC_SUBST(NETTLE_LIBS)
+
+# check gnutls
+PKG_CHECK_MODULES(GNUTLS, [$GNUTLS_REQUIRES])
+AC_SUBST(GNUTLS_CFLAGS)
+AC_SUBST(GNUTLS_LIBS)
 
 # check ncurses
 AC_ARG_WITH([ncurses],
