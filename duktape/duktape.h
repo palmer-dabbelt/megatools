@@ -1,11 +1,11 @@
 /*
- *  Duktape public API for Duktape 1.1.99.
+ *  Duktape public API for Duktape 1.2.0.
  *  See the API reference for documentation on call semantics.
  *  The exposed API is inside the DUK_API_PUBLIC_H_INCLUDED
  *  include guard.  Other parts of the header are Duktape
  *  internal and related to platform/compiler/feature detection.
  *
- *  Git commit b95e86bbb4d8e2721c15ca0d3d27e8e964fa2c02 (v1.1.0-257-gb95e86b).
+ *  Git commit 05cb44c0f5cb9eb21dc4a0bc2d851b47c1a0c782 (v1.2.0).
  *
  *  See Duktape AUTHORS.rst and LICENSE.txt for copyright and
  *  licensing information.
@@ -100,6 +100,7 @@
  *  * Han ChoongWoo (https://github.com/tunz)
  *  * Joshua Peek (https://github.com/josh)
  *  * Bruce E. Pascoe (https://github.com/fatcerberus)
+ *  * https://github.com/Kelledin
  *  
  *  If you are accidentally missing from this list, send me an e-mail
  *  (``sami.vaarala@iki.fi``) and I'll fix the omission.
@@ -247,13 +248,19 @@ static __inline__ unsigned long long duk_rdtsc(void) {
 #endif
 
 /* MIPS */
-/* XXX: 32-bit vs. 64-bit MIPS */
+/* Related defines: __MIPSEB__, __MIPSEL__, __mips_isa_rev, __LP64__ */
 #if defined(__mips__) || defined(mips) || defined(_MIPS_ISA) || \
     defined(_R3000) || defined(_R4000) || defined(_R5900) || \
     defined(_MIPS_ISA_MIPS1) || defined(_MIPS_ISA_MIPS2) || \
     defined(_MIPS_ISA_MIPS3) || defined(_MIPS_ISA_MIPS4) || \
     defined(__mips) || defined(__MIPS__)
 #define DUK_F_MIPS
+#if defined(__LP64__) || defined(__mips64) || defined(__mips64__) || \
+    defined(__mips_n64)
+#define DUK_F_MIPS64
+#else
+#define DUK_F_MIPS32
+#endif
 #endif
 
 /* SuperH */
@@ -603,7 +610,7 @@ static __inline__ unsigned long long duk_rdtsc(void) {
 #include <sys/param.h>
 #include <sys/time.h>
 #include <time.h>
-#elif defined(_TINSPIRE)
+#elif defined(DUK_F_TINSPIRE)
 #define DUK_USE_DATE_NOW_GETTIMEOFDAY
 #define DUK_USE_DATE_TZO_GMTIME_R
 #define DUK_USE_DATE_PRS_STRPTIME
@@ -1273,11 +1280,17 @@ typedef double duk_double_t;
 #define DUK_USE_ALIGN_8
 #elif defined(DUK_F_ARM)
 #define DUK_USE_ALIGN_4
-#elif defined(DUK_F_MIPS)
+#elif defined(DUK_F_MIPS32)
 /* Based on 'make checkalign' there are no alignment requirements on
- * Linux MIPS except for doubles, which need align by 4.
+ * Linux MIPS except for doubles, which need align by 4.  Alignment
+ * requirements vary based on target though.
  */
 #define DUK_USE_ALIGN_4
+#elif defined(DUK_F_MIPS64)
+/* Good default is a bit arbitrary because alignment requirements
+ * depend on target.  See https://github.com/svaarala/duktape/issues/102.
+ */
+#define DUK_USE_ALIGN_8
 #elif defined(DUK_F_SUPERH)
 /* Based on 'make checkalign' there are no alignment requirements on
  * Linux SH4, but align by 4 is probably a good basic default.
@@ -2233,8 +2246,10 @@ typedef FILE duk_file;
 #define DUK_USE_ARCH_STRING "x64"
 #elif defined(DUK_F_ARM)
 #define DUK_USE_ARCH_STRING "arm"
-#elif defined(DUK_F_MIPS)
-#define DUK_USE_ARCH_STRING "mips"
+#elif defined(DUK_F_MIPS32)
+#define DUK_USE_ARCH_STRING "mips32"
+#elif defined(DUK_F_MIPS64)
+#define DUK_USE_ARCH_STRING "mips64"
 #elif defined(DUK_F_SUPERH)
 #define DUK_USE_ARCH_STRING "sh"
 #elif defined(DUK_F_M68K)
@@ -2282,6 +2297,8 @@ typedef FILE duk_file;
 #define DUK_USE_OS_STRING "amigaos"
 #elif defined(DUK_F_QNX)
 #define DUK_USE_OS_STRING "qnx"
+#elif defined(DUK_F_TINSPIRE)
+#define DUK_USE_OS_STRING "tinspire"
 #else
 #define DUK_USE_OS_STRING "unknown"
 #endif
@@ -3157,13 +3174,13 @@ struct duk_number_list_entry {
  * have 99 for patch level (e.g. 0.10.99 would be a development version
  * after 0.10.0 but before the next official release).
  */
-#define DUK_VERSION                       10199L
+#define DUK_VERSION                       10200L
 
 /* Git describe for Duktape build.  Useful for non-official snapshot builds
  * so that application code can easily log which Duktape snapshot was used.
  * Not available in the Ecmascript environment.
  */
-#define DUK_GIT_DESCRIBE                  "v1.1.0-257-gb95e86b"
+#define DUK_GIT_DESCRIBE                  "v1.2.0"
 
 /* Duktape debug protocol version used by this build. */
 #define DUK_DEBUG_PROTOCOL_VERSION        1
