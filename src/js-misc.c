@@ -877,7 +877,6 @@ typedef struct {
 	GSubprocess* process;
 	GCancellable* cancel;
 	JsRef* ref;
-	duk_context* ctx;
 } ExecData;
 
 static void exec_data_free(ExecData* data)
@@ -1004,7 +1003,6 @@ static duk_ret_t js_exec(duk_context* ctx)
 	}
 
 	data->ref = js_ref_take(ctx);
-	data->ctx = ctx;
 	data->cancel = g_cancellable_new();
 
 	g_subprocess_communicate_async(data->process, stdin_data, data->cancel, (GAsyncReadyCallback)exec_comunicate_finish, data);
