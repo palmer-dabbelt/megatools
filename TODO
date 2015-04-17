@@ -1,7 +1,3 @@
-- http
-  - re-usable buffers
-  - progress event
-
 - put
   - data source for stdin and file
   - upload
@@ -12,6 +8,8 @@
     - tell overall progress
     - files queue
   - put file nodes into folders after upload
+
+- check that we clear sid before retrying login
 
 ---------------------------- TOOLS -------------------------------
 
@@ -36,6 +34,7 @@
 - add note about running in parallel
   - locking?
 - add license headers to the code
+- option to disable colors (env var?)
 
 ----------------------------- DATA -------------------------------
 
@@ -55,9 +54,6 @@
 
 ---------------------------- HTTP --------------------------------
 
-- mem:
-  - why are not requests freed until the JS terminates?
-
 - pipeline:
   - algorithm for keep-alive/pipelining
     - detect closed keep-alive connections and requeue requests
@@ -65,11 +61,6 @@
 
 - reverse channel (sc push messages from the server)
   - online filesystem updates in megafs
-
-- incremental
-  - pass block size config info to http_request
-  - JS callbacks onrecvheaders onrecvbody onsendbody
-  - request body processing
 
 ---------------------------- FUSE --------------------------------
 
