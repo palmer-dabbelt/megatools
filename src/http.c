@@ -11,12 +11,13 @@
 #define D_THREADS                   D_BIT(0)
 #define D_THREAD_MESSAGES           D_BIT(1)
 #define D_THREAD_MEM                D_BIT(2)
-#define D_EVENTS                    D_BIT(4)
+#define D_EVENTS                    D_BIT(3)
+#define D_COMMANDS                  D_BIT(4)
 #define D_HTTP                      D_BIT(5)
-#define D_HTTP_MEM                  D_BIT(3)
-#define D_HTTP_BODY                 D_BIT(6)
-#define D_HTTP_HEADERS              D_BIT(7)
-#define D_HTTP_PROGRESS             D_BIT(8)
+#define D_HTTP_MEM                  D_BIT(6)
+#define D_HTTP_BODY                 D_BIT(7)
+#define D_HTTP_HEADERS              D_BIT(8)
+#define D_HTTP_PROGRESS             D_BIT(9)
 #define D_ENABLE                    D_NONE
 #define D(bit, msg, args...)        G_STMT_START { if (bit & (D_ENABLE)) g_printerr(msg, ##args); } G_STMT_END
 
@@ -134,12 +135,77 @@ struct _HttpRequest {
 	gpointer callback_data;
 
 	gboolean queued;
-	gboolean cancel;
+
+	gboolean incremental;
+	GAsyncQueue* commands_queue;
 };
+
+// Request commands:
+
+// {{{ Command
+
+typedef enum {
+	COMMAND_TYPE_NONE,
+	COMMAND_TYPE_CONTINUE,
+	COMMAND_TYPE_PUSH_BODY
+} CommandType;
+
+typedef struct {
+	HttpRequest* request;
+	CommandType type;
+	GBytes* data;
+} Command;
+
+static Command* command_new(HttpRequest* request, CommandType type)
+{
+	g_return_val_if_fail(request != NULL, NULL);
+
+	Command* c = g_slice_new0(Command);
+
+	c->request = http_request_ref(request);
+	c->type = type;
+
+	return c;
+}
+
+static void command_free(Command* command)
+{
+	if (command) {
+		http_request_unref(command->request);
+		g_clear_pointer(&command->data, g_bytes_unref);
+
+		memset(command, 0, sizeof(Command));
+		g_slice_free(Command, command);
+	}
+}
+
+static void command_queue(Command* command)
+{
+	g_return_if_fail(command != NULL);
+
+	g_async_queue_push(command->request->commands_queue, command);
+}
+
+DEFINE_CLEANUP_FUNCTION_NULL(Command*, command_free)
+#define gc_command_free CLEANUP(command_free)
+
+// }}}
+// {{{ http_request_wait_for_command
+
+static Command* http_request_wait_for_command(HttpRequest* request)
+{
+	g_return_if_fail(request != NULL);
+
+	return g_async_queue_timeout_pop(request->commands_queue, 60 * 1000000);
+}
+
+// }}}
+
+// Request API:
 
 // {{{ http_request_new
 
-HttpRequest* http_request_new(const gchar* method, const gchar* url)
+HttpRequest* http_request_new(const gchar* method, const gchar* url, gboolean incremental)
 {
 	g_return_val_if_fail(method != NULL, NULL);
 	g_return_val_if_fail(url != NULL, NULL);
@@ -151,6 +217,8 @@ HttpRequest* http_request_new(const gchar* method, const gchar* url)
 	r->url = g_strdup(url);
 	r->request_headers = g_hash_table_new_full(stri_hash, stri_equal, g_free, g_free);
 	r->response_headers = g_hash_table_new_full(stri_hash, stri_equal, g_free, g_free);
+	r->incremental = incremental;
+	r->commands_queue = g_async_queue_new_full((GDestroyNotify)command_free);
 
 	if (!parse_url(r->url, &r->secure, &r->host, &r->port, &r->resource)) {
 		r->invalid = TRUE;
@@ -174,9 +242,9 @@ void http_request_set_header(HttpRequest* request, const gchar* name, const gcha
 }
 
 // }}}
-// {{{ http_request_set_data
+// {{{ http_request_set_body
 
-void http_request_set_data(HttpRequest* request, const gchar* data, gssize len)
+void http_request_set_body(HttpRequest* request, const gchar* data, gssize len)
 {
 	g_return_if_fail(request != NULL);
 	g_return_if_fail(data != NULL);
@@ -222,6 +290,51 @@ const guchar* http_request_get_response_body(HttpRequest* request, gsize* len)
 }
 
 // }}}
+// {{{ http_request_is_incremental
+
+gboolean http_request_is_incremental(HttpRequest* request)
+{
+	g_return_val_if_fail(request != NULL, FALSE);
+	
+	return request->incremental;
+}
+
+// }}}
+// {{{ http_request_push_body
+
+void http_request_push_body(HttpRequest* request, const gchar* data, gssize len)
+{
+	g_return_if_fail(request != NULL);
+	g_return_if_fail(data != NULL);
+	g_return_if_fail(len > 0);
+
+	Command* c = command_new(request, COMMAND_TYPE_PUSH_BODY);
+	c->data = g_bytes_new(data, len);
+
+	D(D_COMMANDS, "-> COMMAND: PUSH BODY\n");
+
+	if (c) {
+		command_queue(c);
+	}
+}
+
+// }}}
+// {{{ http_request_continue
+
+void http_request_continue(HttpRequest* request)
+{
+	g_return_if_fail(request != NULL);
+
+	Command* c = command_new(request, COMMAND_TYPE_CONTINUE);
+
+	D(D_COMMANDS, "-> COMMAND: CONTINUE\n");
+
+	if (c) {
+		command_queue(c);
+	}
+}
+
+// }}}
 // {{{ http_request_ref
 
 HttpRequest* http_request_ref(HttpRequest* request)
@@ -250,6 +363,7 @@ void http_request_unref(HttpRequest* request)
 		g_free(request->response_body);
 		g_hash_table_unref(request->request_headers);
 		g_hash_table_unref(request->response_headers);
+		g_async_queue_unref(request->commands_queue);
 		g_free(request);
 	}
 }
@@ -283,9 +397,14 @@ static void event_free(Event* event)
 		http_request_unref(event->request);
 
 		// clear event payload
-		g_clear_pointer(&event->event.error_code, g_free);
-		g_clear_pointer(&event->event.error_message, g_free);
-		g_clear_pointer(&event->event.data, g_free);
+		if (event->event.type == HTTP_REQUEST_EVENT_ERROR) {
+			g_clear_pointer(&event->event.error_code, g_free);
+			g_clear_pointer(&event->event.error_message, g_free);
+		}
+
+		if (event->event.type == HTTP_REQUEST_EVENT_RECV_BODY) {
+			g_clear_pointer(&event->event.data, g_bytes_unref);
+		}
 
 		memset(event, 0, sizeof(Event));
 		g_slice_free(Event, event);
@@ -370,16 +489,44 @@ static void emit_complete(HttpRequest* request)
 }
 
 // }}}
-// {{{ emit_data
+// {{{ emit_pull_body
 
-static void emit_data(HttpRequest* request, gsize off, gchar* buf, gsize size)
+static void emit_pull_body(HttpRequest* request)
 {
-	Event* e = event_new(request, HTTP_REQUEST_EVENT_COMPLETE);
+	Event* e = event_new(request, HTTP_REQUEST_EVENT_PULL_BODY);
+
+	D(D_EVENTS, "<- PULL BODY\n");
 
 	if (e) {
-		e->event.data = g_memdup(buf, size);
-		e->event.data_off = off;
-		e->event.data_size = size;
+		event_queue(e);
+	}
+}
+
+// }}}
+// {{{ emit_recv_headers
+
+static void emit_recv_headers(HttpRequest* request)
+{
+	Event* e = event_new(request, HTTP_REQUEST_EVENT_RECV_HEADERS);
+
+	D(D_EVENTS, "<- RECV HEADERS\n");
+
+	if (e) {
+		event_queue(e);
+	}
+}
+
+// }}}
+// {{{ emit_recv_body
+
+static void emit_recv_body(HttpRequest* request, gchar* buf, gsize size)
+{
+	Event* e = event_new(request, HTTP_REQUEST_EVENT_RECV_BODY);
+
+	D(D_EVENTS, "<- RECV BODY\n");
+
+	if (e) {
+		e->event.data = g_bytes_new(buf, size);
 
 		event_queue(e);
 	}
@@ -594,6 +741,7 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 {
 	gc_error_free GError* local_err = NULL;
 	gssize response_length = -1;
+	gssize request_length = -1;
 
 	g_return_val_if_fail(connection != NULL, FALSE);
 	g_return_val_if_fail(request != NULL, FALSE);
@@ -652,8 +800,19 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 	http_request_set_header(request, "Connection", "close");
 	//http_request_set_header(request, "Connection", "keep-alive");
 
-	gc_free gchar* len = g_strdup_printf("%" G_GSIZE_FORMAT, request->request_body_size);
-	http_request_set_header(request, "Content-Length", len);
+        if (request->incremental) {
+		const gchar* len = g_hash_table_lookup(request->request_headers, "Content-Length");
+		if (!len) {
+			emit_error(request, "setup_fail", "You must set Content-Length request header in incremental mode");
+			return FALSE;
+		}
+
+		// XXX: check validity
+		request_length = atoi(len);
+	} else {
+		gc_free gchar* len = g_strdup_printf("%" G_GSIZE_FORMAT, request->request_body_size);
+		http_request_set_header(request, "Content-Length", len);
+	}
 
 	GHashTableIter iter;
 	gchar *header_name, *header_value;
@@ -676,17 +835,53 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 
 	// send data if any
 
-	D(D_HTTP_PROGRESS, "-> sending body\n");
+        if (request->incremental) {
+		while (request_length > 0) {
+			// ask for data
+			emit_pull_body(request);
 
-	if (request->request_body)
-		D(D_HTTP_BODY, "-> %s\n", request->request_body);
+			// receive data
+			gc_command_free Command* cmd = http_request_wait_for_command(request);
+			if (!cmd) {
+				emit_error(request, "command_timeout", "Timeout while expecting commands: continue, send_data");
+				return FALSE;
+			}
 
-	if (request->request_body && !g_output_stream_write_all(connection->out, request->request_body, request->request_body_size, NULL, NULL, &local_err)) {
-		emit_error_propagate(request, local_err, "send_fail", "Can't send request body: ");
-		return FALSE;
+			if (cmd->type != COMMAND_TYPE_PUSH_BODY) {
+				emit_error(request, "unexpected_command", "Expecting push_body command, got something else");
+				return FALSE;
+			}
+
+			gsize size = 0;
+			gconstpointer data = g_bytes_get_data(cmd->data, &size);
+			if (!data || size == 0) {
+				emit_error(request, "empty_data", "No body data provided. Expected at most %" G_GSSIZE_FORMAT ", got %" G_GSIZE_FORMAT, request_length, size);
+				return FALSE;
+			} else if (size > request_length) {
+				emit_error(request, "too_much_data", "Too much body data provided. Expected at most %" G_GSSIZE_FORMAT ", got %" G_GSIZE_FORMAT, request_length, size);
+				return FALSE;
+			}
+
+			if (!g_output_stream_write_all(connection->out, data, size, NULL, NULL, &local_err)) {
+				emit_error_propagate(request, local_err, "send_fail", "Can't send request body: ");
+				return FALSE;
+			}
+
+			request_length -= size;
+		}
+	} else {
+		if (request->request_body) {
+			D(D_HTTP_PROGRESS, "-> sending body\n");
+			D(D_HTTP_BODY, "-> %s\n", request->request_body);
+
+			if (!g_output_stream_write_all(connection->out, request->request_body, request->request_body_size, NULL, NULL, &local_err)) {
+				emit_error_propagate(request, local_err, "send_fail", "Can't send request body: ");
+				return FALSE;
+			}
+
+			D(D_HTTP_PROGRESS, "-> body sent\n");
+		}
 	}
-
-	D(D_HTTP_PROGRESS, "-> body sent\n");
 
 	D(D_HTTP_PROGRESS, "<- waiting for headers\n");
 
@@ -735,6 +930,7 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 					gchar* value = g_strstrip(g_strdup(colon + 1));
 
 					if (!strcmp(name, "content-length")) {
+						// XXX: check validity
 						response_length = atoi(value);
 					}
 
@@ -760,6 +956,21 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 		return FALSE;
 	}
 
+	if (request->incremental) {
+		emit_recv_headers(request);
+
+		gc_command_free Command* cmd = http_request_wait_for_command(request);
+		if (!cmd) {
+			emit_error(request, "command_timeout", "Timeout while expecting commands: continue");
+			return FALSE;
+		}
+
+		if (cmd->type != COMMAND_TYPE_CONTINUE) {
+			emit_error(request, "unexpected_command", "Expecting continue command, got something else");
+			return FALSE;
+		}
+	}
+
 	D(D_HTTP_PROGRESS, "<- waiting for body\n");
 
 	if (response_length == 0) {
@@ -768,30 +979,60 @@ static gboolean http_connection_do_request(HttpConnection* connection, HttpReque
 		return FALSE;
 	}
 
-	if (response_length > 256 * 1024 * 1024) {
-		gc_free gchar* size_str = g_format_size_full(response_length, G_FORMAT_SIZE_LONG_FORMAT);
-		emit_error(request, "too_big", "Response is too big: %s", size_str);
-		return FALSE;
+	if (request->incremental) {
+		// Use 128kB buffer
+		gc_free gchar* buf = g_malloc(128 * 1024);
+                gsize remaining_size = response_length;
+
+		while (remaining_size > 0) {
+			gsize bytes_read = 0;
+
+			if (!g_input_stream_read_all(connection->in, buf, MIN(remaining_size, 128 * 1024), &bytes_read, NULL, &local_err)) {
+				emit_error_propagate(request, local_err, "no_response", "Can't receive response body: ");
+				return FALSE;
+			}
+
+			emit_recv_body(request, buf, bytes_read);
+
+			gc_command_free Command* cmd = http_request_wait_for_command(request);
+			if (!cmd) {
+				emit_error(request, "command_timeout", "Timeout while expecting commands: continue");
+				return FALSE;
+			}
+
+			if (cmd->type != COMMAND_TYPE_CONTINUE) {
+				emit_error(request, "unexpected_command", "Expecting continue command, got something else");
+				return FALSE;
+			}
+
+			remaining_size -= bytes_read;
+		}
+	} else {
+		if (response_length > 256 * 1024 * 1024) {
+			gc_free gchar* size_str = g_format_size_full(response_length, G_FORMAT_SIZE_LONG_FORMAT);
+			emit_error(request, "too_big", "Response is too big: %s", size_str);
+			return FALSE;
+		}
+
+		gc_free gchar* buf = g_malloc(response_length + 1);
+		buf[response_length] = '\0';
+		gsize actual_response_length = 0;
+
+		if (!g_input_stream_read_all(connection->in, buf, response_length, &actual_response_length, NULL, &local_err)) {
+			emit_error_propagate(request, local_err, "no_response", "Can't receive response body: ");
+			return FALSE;
+		}
+
+		if (response_length != actual_response_length) {
+			emit_error(request, "short_response", "Expecting %u, got %u bytes", response_length, actual_response_length);
+			return FALSE;
+		}
+
+		request->response_body = buf; buf = NULL;
+		request->response_body_size = response_length;
+
+		D(D_HTTP_BODY, "<- %s\n", request->response_body);
 	}
-
-	gc_free gchar* buf = g_malloc(response_length + 1);
-	buf[response_length] = '\0';
-	gsize actual_response_length = 0;
-
-	if (!g_input_stream_read_all(connection->in, buf, response_length, &actual_response_length, NULL, &local_err)) {
-		emit_error_propagate(request, local_err, "no_response", "Can't receive response body: ");
-		return FALSE;
-	}
-
-	if (response_length != actual_response_length) {
-		emit_error(request, "short_response", "Expecting %u, got %u bytes", response_length, actual_response_length);
-		return FALSE;
-	}
-
-	request->response_body = buf; buf = NULL;
-	request->response_body_size = response_length;
-
-	D(D_HTTP_BODY, "<- %s\n", request->response_body);
 
 	emit_complete(request);
 
