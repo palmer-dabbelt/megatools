@@ -179,10 +179,10 @@ int main(int ac, char* av[])
 
   // prepare link parsers
 
-  file_regex = g_regex_new("^https?://mega.co.nz/#!([a-z0-9_-]{8})!([a-z0-9_-]{43})$", G_REGEX_CASELESS, 0, NULL);
+  file_regex = g_regex_new("^https?://mega(.co)?.nz/#!([a-z0-9_-]{8})!([a-z0-9_-]{43})$", G_REGEX_CASELESS, 0, NULL);
   g_assert(file_regex != NULL);
 
-  folder_regex = g_regex_new("^https?://mega.co.nz/#F!([a-z0-9_-]{8})!([a-z0-9_-]{22})$", G_REGEX_CASELESS, 0, NULL);
+  folder_regex = g_regex_new("^https?://mega(.co)?.nz/#F!([a-z0-9_-]{8})!([a-z0-9_-]{22})$", G_REGEX_CASELESS, 0, NULL);
   g_assert(folder_regex != NULL);
 
   // create session
@@ -202,8 +202,8 @@ int main(int ac, char* av[])
 
     if (g_regex_match(file_regex, link, 0, &m1))
     {
-      handle = g_match_info_fetch(m1, 1);
-      key = g_match_info_fetch(m1, 2);
+      handle = g_match_info_fetch(m1, 2);
+      key = g_match_info_fetch(m1, 3);
 
       // perform download
       if (!mega_session_dl(s, handle, key, opt_stream ? NULL : opt_path, &local_err))
@@ -231,8 +231,8 @@ int main(int ac, char* av[])
         return 1;
       }
 
-      handle = g_match_info_fetch(m2, 1);
-      key = g_match_info_fetch(m2, 2);
+      handle = g_match_info_fetch(m2, 2);
+      key = g_match_info_fetch(m2, 3);
 
       // perform download
       if (!mega_session_open_exp_folder(s, handle, key, &local_err))
